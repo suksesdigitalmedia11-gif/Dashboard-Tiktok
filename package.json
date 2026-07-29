@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Dashboard Keuangan TikTok - Monitoring Multi-Store",
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "pg": "8.13.0",
     "xlsx": "0.18.5"
   },
