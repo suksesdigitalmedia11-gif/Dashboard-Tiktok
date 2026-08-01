@@ -1,0 +1,4 @@
+  el("estimatedProfitMeta").textContent = incomeMissing ? "Income belum match" : "Dari income statement";
+  el("held").textContent = fmt(t.pendingSettlementOmzet || viewHeld);
+  el("heldMeta").textContent = num(t.pendingSettlementOrders || 0)+" order belum cair";
+  el("platformFee").textContent = fmt(viewPlatform);

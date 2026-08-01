@@ -307,8 +307,8 @@ function render(summary) {
   el("finalProfitMeta").textContent = "Omzet setelah diskon seller";
   el("estimatedProfit").textContent = incomeMissing ? "Belum valid" : fmt(viewSettlement);
   el("estimatedProfitMeta").textContent = incomeMissing ? "Income belum match" : "Dari income statement";
-  el("held").textContent = fmt(viewHeld);
-  el("heldMeta").textContent = num(t.heldOrders instanceof Set ? t.heldOrders.size : (t.heldOrders || 0))+" order belum cair";
+  el("held").textContent = fmt(t.pendingSettlementOmzet || viewHeld);
+  el("heldMeta").textContent = num(t.pendingSettlementOrders || 0)+" order belum cair";
   el("platformFee").textContent = fmt(viewPlatform);
   const platformFeeMetaEl = document.getElementById("platformFeeMeta");
   if (platformFeeMetaEl) {
@@ -402,7 +402,7 @@ function buildAssistantFromTotals(t) {
       biayaIklanTopup: adSpendTopup,
       totalBiaya: totalBiaya,
       returCancel: refund,
-      danaTertahan: Number(t.held || 0),
+      danaTertahan: Number(t.pendingSettlementOmzet || t.held || 0),
       refund: refund,
       profitBersih: profit,
       hppPacking: hpp + packing
@@ -1056,10 +1056,13 @@ function openDrilldown(type, page) {
       rows = [["(Data settlement diambil dari Income Statement)","Filter: Jenis=Pesanan, "+s.filters.startDate+".."+s.filters.endDate,"Total: "+fmtExact(t.settlement),"Biaya: "+fmtExact(t.platformFee)]];
     }
   } else if (type === "held") {
-    info = {title:"Dana Tertahan",formula:"Omzet Net "+fmtExact(t.omzet)+" - Potongan Platform "+fmtExact(t.platformFee)+" - Settlement Cair "+fmtExact(t.settlement)+" = "+fmtExact(t.held),total:fmtExact(t.held)};
-    if (t.held > 0) {
-      columns = ["Penjelasan"];
-      rows = [["Dana tertahan = selisih antara omzet net dengan (potongan platform + settlement cair). Ini adalah uang yang belum dicairkan oleh TikTok."]];
+    const pendingCount = t.pendingSettlementOrders || 0;
+    const pendingOmzet = t.pendingSettlementOmzet || 0;
+    info = {title:"Dana Tertahan",formula:pendingCount+" order Selesai/Dikirim tanpa settlement = "+fmtExact(pendingOmzet),total:fmtExact(pendingOmzet)};
+    if (pendingCount > 0) {
+      columns = ["Penjelasan","Jumlah Order","Total Omzet"];
+      rows = [["Order Selesai atau Dikirim yang BELUM punya pencairan (settlement_received=0) dan TIDAK match di Income Statement",num(pendingCount),fmtExact(pendingOmzet)]];
+    }
     }
   } else if (type === "platform") {
     info = {title:"Potongan Platform",formula:"ABS(SUM(Total Biaya)) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.platformFee)};
