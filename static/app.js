@@ -307,7 +307,7 @@ function render(summary) {
   el("finalProfitMeta").textContent = "Omzet setelah diskon seller";
   el("estimatedProfit").textContent = incomeMissing ? "Belum valid" : fmt(viewSettlement);
   el("estimatedProfitMeta").textContent = incomeMissing ? "Income belum match" : "Dari income statement";
-  el("held").textContent = fmt(t.pendingSettlementOmzet || viewHeld);
+  el("held").textContent = fmt(t.pendingSettlementOmzet || 0);
   el("heldMeta").textContent = num(t.pendingSettlementOrders || 0)+" order belum cair";
   el("platformFee").textContent = fmt(viewPlatform);
   const platformFeeMetaEl = document.getElementById("platformFeeMeta");
