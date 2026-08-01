@@ -32,9 +32,17 @@ function rupiah(v) {
   const t0 = Date.now();
   await pg.initSchema();
 
-  // 1. Import Juni raw income — direct batch insert
-  console.log('1/2 Raw income (Juni)...');
-  const incomeRows = readSheet(path.join(DATA_DIR, 'penarikan-dana-juni-sekarang.xlsx'));
+  // 1. Import ALL raw income — direct batch insert (both files)
+  console.log('1/2 Raw income (April-Juli)...');
+  const incomeFiles = ['penarikan-dana-april-mei.xlsx', 'penarikan-dana-juni-sekarang.xlsx'];
+  let allIncomeRows = [];
+  for (const fn of incomeFiles) {
+    const rows = readSheet(path.join(DATA_DIR, fn));
+    console.log('  ' + fn + ': ' + rows.length + ' rows');
+    allIncomeRows = allIncomeRows.concat(rows);
+  }
+  const incomeRows = allIncomeRows;
+  console.log('  Total: ' + incomeRows.length + ' rows');
   
   // Also include april-mei if not already imported (check DB)
   const existingRaw = await pg.pgQuery("SELECT COUNT(*) as c FROM finance_income_raw WHERE store_name='custombase'");
@@ -45,7 +53,11 @@ function rupiah(v) {
   const adSpendByKey = new Map();
   for (const row of incomeRows) {
     const type = String(row['Jenis transaksi'] || '').trim();
-    const orderId = String(row['ID pesanan terkait'] || row['ID Pesanan/Penyesuaian'] || '').trim().replace(/\/\t?/, '');
+    const orderId = (() => {
+      const related = String(row['ID pesanan terkait'] || '').trim();
+      if (related && !related.startsWith('/')) return related;
+      return String(row['ID Pesanan/Penyesuaian'] || '').trim();
+    })();
     if (!orderId) continue;
     
     rawIncome.push({
