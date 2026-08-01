@@ -52,7 +52,7 @@ function rupiah(v) {
       store_name: STORE,
       transaction_type: type,
       order_id: orderId,
-      order_created_time: String(row['Waktu pemesanan'] || '').trim(),
+      order_created_time: String(row['Waktu pemesanan'] || '').trim().replace(/\//g, '-').slice(0, 10),
       settlement_amount: rupiah(row['Jumlah penyelesaian pembayaran']),
       total_fees: Math.abs(rupiah(row['Total Biaya'])),
       refund_amount: Math.abs(rupiah(row['Subtotal pengembalian dana setelah diskon penjual'])),
