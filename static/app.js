@@ -1063,7 +1063,6 @@ function openDrilldown(type, page) {
       columns = ["Penjelasan","Jumlah Order","Total Omzet"];
       rows = [["Order Selesai atau Dikirim yang BELUM punya pencairan (settlement_received=0) dan TIDAK match di Income Statement",num(pendingCount),fmtExact(pendingOmzet)]];
     }
-    }
   } else if (type === "platform") {
     info = {title:"Potongan Platform",formula:"ABS(SUM(Total Biaya)) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.platformFee)};
     columns = ["Sumber Data","Jenis Transaksi","Periode","Total Biaya"];
