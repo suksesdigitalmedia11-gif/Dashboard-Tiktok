@@ -1058,10 +1058,13 @@ function openDrilldown(type, page) {
   } else if (type === "held") {
     const pendingCount = t.pendingSettlementOrders || 0;
     const pendingOmzet = t.pendingSettlementOmzet || 0;
-    info = {title:"Dana Tertahan",formula:pendingCount+" order Selesai/Dikirim tanpa settlement = "+fmtExact(pendingOmzet),total:fmtExact(pendingOmzet)};
+    info = {title:"Dana Tertahan",formula:pendingCount+" order Selesai/Dikirim belum cair = "+fmtExact(pendingOmzet),total:fmtExact(pendingOmzet)};
     if (pendingCount > 0) {
-      columns = ["Penjelasan","Jumlah Order","Total Omzet"];
-      rows = [["Order Selesai atau Dikirim yang BELUM punya pencairan (settlement_received=0) dan TIDAK match di Income Statement",num(pendingCount),fmtExact(pendingOmzet)]];
+      columns = ["Order ID","Status","Omzet","Tracking","Paket"];
+      var pendingRows = (s.operationDetails||[]).filter(function(r){return r.pendingSettlement===true;});
+      totalRows = pendingRows.length;
+      pendingRows = pendingRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
+      rows = pendingRows.map(function(r){return["<strong>"+escapeHtml(r.orderId)+"</strong>","<span class=badge>"+escapeHtml(r.status||"-")+"</span>",fmt(r.omzet||0),escapeHtml(r.trackingId||"-"),num(r.packageCount)];});
     }
   } else if (type === "platform") {
     info = {title:"Potongan Platform",formula:"ABS(SUM(Total Biaya)) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.platformFee)};
