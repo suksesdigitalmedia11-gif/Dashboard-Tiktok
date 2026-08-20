@@ -8,7 +8,7 @@ const state = {
   config: null,
   filters: { preset: "thisMonth", month: "", store: "all" },
   pendingFilters: { preset: "thisMonth", month: "", store: "all" },
-  calcMode: "accrual", // "accrual" or "settlement"
+  calcMode: "settlement", // "settlement" = uang nyata cair (default) | "accrual" = termasuk order Dikirim
   skuSort: "profit",
   skuStatus: "all",
   statusSort: "late",
@@ -18,17 +18,19 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
-const fmt = (n) => "Rp" + Math.round(Number(n || 0)).toLocaleString("id-ID");
-const fmtExact = (n) => "Rp" + Math.round(Number(n || 0)).toLocaleString("id-ID");  // Exact, no rounding
+const fmt = (n) => (n === null || n === undefined) ? "Belum valid" : "Rp" + Math.round(Number(n || 0)).toLocaleString("id-ID");
+const fmtExact = (n) => (n === null || n === undefined) ? "Belum valid" : "Rp" + Math.round(Number(n || 0)).toLocaleString("id-ID");  // Exact, no rounding
 const fmtCompact = (n) => {
+  if (n === null || n === undefined) return "Belum valid";
   const value = Math.round(Number(n || 0));
   if (Math.abs(value) >= 1_000_000_000) return "Rp" + (value / 1_000_000_000).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " M";
   if (Math.abs(value) >= 1_000_000) return "Rp" + (value / 1_000_000).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " jt";
   if (Math.abs(value) >= 1_000) return "Rp" + (value / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 0 }) + " rb";
   return fmt(value);
 };
-const num = (n) => Math.round(Number(n || 0)).toLocaleString("id-ID");
+const num = (n) => (n === null || n === undefined) ? "—" : Math.round(Number(n || 0)).toLocaleString("id-ID");
 const pct = (n) => {
+  if (n === null || n === undefined) return "—";
   const value = Number(n || 0);
   const digits = Math.abs(value) > 0 && Math.abs(value) < 1 ? 2 : 1;
   return `${value.toFixed(digits)}%`;
@@ -48,16 +50,19 @@ const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, char => ({
 }[char]));
 
 function showNotice(message, level = "warn", popup = false) {
-  const text = message || "Terjadi kesalahan.";
-  if (el("alerts")) {
+  if (window.showToast) {
+    window.showToast(message, level === "warn" ? "warn" : level === "danger" ? "error" : "info", 6000);
+  }
+  // Also keep in-page alerts for persistent warnings
+  if (el("alerts") && level !== "info") {
     el("alerts").innerHTML = `
       <div class="alert ${level}">
         <strong>Perhatian</strong>
-        <div>${escapeHtml(text)}</div>
+        <div>${escapeHtml(message)}</div>
       </div>
     ` + el("alerts").innerHTML;
   }
-  if (popup) window.alert(text);
+  if (popup) window.alert(message);
 }
 
 function cloudBlocked(action) {
@@ -81,23 +86,25 @@ function setView(view) {
   });
   el("pageTitle").textContent =
     view === "tv" ? "Monitor Operasional" :
-    view === "team" ? "Dashboard Tim" :
-    view === "ops" ? "Upload & Otomatis" :
-    view === "quality" ? "Data Quality Center" :
-    view === "sku" ? "Detail SKU" :
-    view === "stores" ? "Dashboard Per Toko" :
-    view === "accounting" ? "Laporan Akuntansi" :
-    "Owner Dashboard";
+      view === "team" ? "Dashboard Tim" :
+        view === "ops" ? "Upload & Otomatis" :
+          view === "quality" ? "Data Quality Center" :
+            view === "sku" ? "Detail SKU" :
+              view === "stores" ? "Dashboard Per Toko" :
+                view === "accounting" ? "Laporan Akuntansi" :
+                  "Owner Dashboard";
   el("pageSub").textContent =
     view === "tv" ? "Tampilan aman untuk tim: order, omset, status, dan SKU bergerak cepat." :
-    view === "team" ? "Mode aman untuk tim: data operasional terlihat, profit dan biaya rahasia disembunyikan." :
-    view === "ops" ? "Upload data terbaru, jalankan auto update folder, dan aktifkan laporan Telegram." :
-    view === "quality" ? "Deteksi SKU tanpa HPP, order belum cair, pencairan tidak matched, cancel/refund besar, dan data duplikat." :
-    view === "sku" ? "Cari SKU yang benar-benar menghasilkan profit dan SKU yang perlu diperbaiki." :
-    view === "stores" ? "Bandingkan performa ventura, giftyours, dan custombase dalam satu layar." :
-    view === "accounting" ? "Laba rugi, neraca mini, arus kas, dan pajak per bulan per toko." :
-    "Profit, dana tertahan, potongan, HPP, forecast, dan rekomendasi asisten.";
+      view === "team" ? "Mode aman untuk tim: data operasional terlihat, profit dan biaya rahasia disembunyikan." :
+        view === "ops" ? "Upload data terbaru, jalankan auto update folder, dan aktifkan laporan Telegram." :
+          view === "quality" ? "Deteksi SKU tanpa HPP, order belum cair, pencairan tidak matched, cancel/refund besar, dan data duplikat." :
+            view === "sku" ? "Cari SKU yang benar-benar menghasilkan profit dan SKU yang perlu diperbaiki. CRUD HPP langsung dari sini." :
+              view === "stores" ? "Bandingkan performa ventura, giftyours, dan custombase dalam satu layar." :
+                view === "accounting" ? "Laba rugi, neraca mini, arus kas, dan pajak per bulan per toko." :
+                  "Profit, dana tertahan, potongan, HPP, forecast, dan rekomendasi asisten.";
   el("trendTitle").textContent = state.accessRole !== "owner" ? "Omset 30 Hari" : "Omset & Profit 30 Hari";
+  // ── Auto-load SKU management saat pindah ke view sku ──
+  if (view === "sku") loadSkuManage(0);
   refresh().catch(err => alert(err.message));
 }
 
@@ -197,8 +204,11 @@ async function refresh() {
     return;
   }
   // Load dari summary API saja (sudah include daily, sku, operation, stores)
-  var summary = await api(summaryUrl()).then(function(r) { return (r && r.totals ? r : { totals: {} }); }).catch(function(e) { return { totals: {} }; });
+  var summary = await api(summaryUrl()).then(function (r) { return (r && r.totals ? r : { totals: {} }); }).catch(function (e) { return { totals: {} }; });
   state.summary = summary;
+
+  // Update connection status
+  updateConnectionStatus(summary);
   var availStores = summary.availableStores || defaultStores;
   var availMonths = summary.availableMonths || [];
   if (!availMonths.length && summary.generatedAt) {
@@ -210,9 +220,11 @@ async function refresh() {
       now.setMonth(now.getMonth() - 1);
     }
   }
+  // Sync store dropdown di SKU management & modal dari data summary
+  if (availStores && availStores.length) populateSkuStoreFilter(availStores);
   render(summary);
 }
-  
+
 // Load Data Quality data in parallel
 async function loadSummary() {
   try {
@@ -268,74 +280,101 @@ function render(summary) {
   if (!summary || !summary.totals) { summary = { totals: {}, alerts: [], status: [], operationStatus: [], operationDetails: [], topSku: [], weakSku: [], daily: [], stores: [], runs: [], auditEvents: [], adSpendRows: [], assistant: { score: 0, health: "Menunggu Data", forecast30Omzet: 0, insights: [], actions: [] }, availableStores: [], availableMonths: [] }; }
   const t = summary.totals || {};
   const mode = state.calcMode || "accrual";
-  // Use totals directly — settlement/platform/adSettlement come from income_raw now
-  const viewGross = Number(t.gross || 0);
-  const viewDiscount = Number(t.sellerDiscount || 0);
-  const viewOmzet = Number(t.omzet || 0);
-  const viewOmzetNet = Math.max(viewGross - viewDiscount, 0);
-  const viewSettlement = Number(t.settlement || 0);
-  const viewHeld = Number(t.held || 0);
-  const viewPlatformFinal = Number(t.platformFeeFinal || 0);
-  const viewPlatformEstimated = Number(t.platformFeeEstimated || 0);
-  const viewPlatform = viewPlatformFinal + viewPlatformEstimated;
-  const viewProfit = Number(t.profit || 0);
-  const viewHpp = Number(t.hpp || 0);
-  const viewPacking = Number(t.packing || 0);
-  const viewHppPacking = viewHpp + viewPacking;
-  const viewMargin = viewOmzetNet > 0 ? (viewProfit / viewOmzetNet * 100) : 0;
-  const incomeMissing = Number(t.settlement || 0) <= 0;
+  // ── availability flags from API ──
+  const incomeAvail = summary.incomeAvailable !== false;
+  const adsAvail = summary.adsAvailable !== false;
+  const returnAvail = summary.returnAvailable !== false;
+  const hppComplete = summary.hppCompleteness === "COMPLETE";
+  const profitValid = summary.profitValidity === "VALID";
+  // Use null-preserving: keep null as null, only fallback missing to 0
+  const nn = (v) => (v === null || v === undefined) ? null : Number(v || 0);
+  const viewGross = nn(t.gross);
+  const viewDiscount = nn(t.sellerDiscount);
+  const viewOmzet = nn(t.omzet);
+  const viewOmzetNet = Math.max((viewGross || 0) - (viewDiscount || 0), 0);
+  const viewSettlement = nn(t.settlement);
+  // Dana Tertahan = pendingSettlementOmzet: order Selesai+Dikirim tanpa settlement (additive lintas bulan)
+  // t.held (lama) hanya order Dikirim tanpa income — tidak additive, jangan dipakai untuk display
+  const viewHeld = nn(t.pendingSettlementOmzet || t.held || 0);
+  const viewPlatformFinal = nn(t.platformFeeFinal);
+  const viewPlatformEstimated = nn(t.platformFeeEstimated);
+  const viewPlatform = (viewPlatformFinal || 0) + (viewPlatformEstimated || 0);
+  const viewProfit = nn(t.profit);
+  const viewHpp = nn(t.hpp);
+  const viewPacking = nn(t.packing);
+  const viewHppPacking = (viewHpp || 0) + (viewPacking || 0);
+  const viewMargin = (viewProfit !== null && viewOmzetNet > 0) ? (viewProfit / viewOmzetNet * 100) : null;
   const viewOrders = Number(t.orders instanceof Set ? t.orders.size : (t.orders || 0));
   const viewFinalOrders = Number(t.finalOrders instanceof Set ? t.finalOrders.size : (t.finalOrders || 0));
-  const viewRefund = Number(t.refund || t.cancelledAmount || 0);
-  const viewAdSpend = Number(t.adSpend || 0);
-  const viewAdSpendSettlement = Number(t.adSpendSettlement || t.settlementAdSpend || 0);
-  const viewAdSpendTopup = Number(t.adSpendTopup || 0);
-  const viewRefundOrCancel = Number(t.cancelledAmount || 0);
+  const viewEligibleAccrual = Number(t.eligibleAccrualOrders || t.heldOrders || 0);
+  const viewRefund = nn(t.refund || t.cancelledAmount);
+  const viewAdSpend = nn(t.adSpend);
+  const viewAdSpendSettlement = nn(t.adSpendSettlement || t.settlementAdSpend);
+  const viewAdSpendTopup = nn(t.adSpendTopup);
+  const viewRefundOrCancel = nn(t.cancelledAmount);
   const viewCancelledOrders = Number(t.cancelledOrders instanceof Set ? t.cancelledOrders.size : (t.cancelledOrders || 0));
-  const viewReturnPkg = Number(t.returnPackages || 0);
-  const viewCancelPkg = Number(t.cancelPackages || 0);
-  const viewCancelledPkg = Number(t.cancelledPackages || 0);
-  const viewAdjustment = Number(t.adjustmentAmount || 0);
+  const viewReturnPkg = nn(t.returnPackages);
+  const viewCancelPkg = nn(t.cancelPackages);
+  const viewCancelledPkg = nn(t.cancelledPackages);
+  const viewAdjustment = nn(t.adjustmentAmount);
+  const missingHppCnt = summary.missingHppSkuCount || 0;
 
   el("generatedAt").textContent = summary.generatedAt;
-  el("orders").textContent = num(viewFinalOrders);
-  el("todayOrders").textContent = "Final "+num(viewFinalOrders)+" order \u00b7 Retur/cancel "+num(viewCancelledOrders)+" order";
+  // ── Order card: accrual shows eligibleAccrual, settlement shows Selesai ──
+  if (mode === "accrual") {
+    el("orders").textContent = num(viewEligibleAccrual || viewFinalOrders);
+    const sel = viewFinalOrders - (viewEligibleAccrual ? viewEligibleAccrual - viewFinalOrders : 0);
+    el("todayOrders").textContent = "Accrual " + num(viewEligibleAccrual) + " order · Retur/cancel " + num(viewCancelledOrders) + " order";
+  } else {
+    el("orders").textContent = num(viewFinalOrders);
+    el("todayOrders").textContent = "Final " + num(viewFinalOrders) + " order · Retur/cancel " + num(viewCancelledOrders) + " order";
+  }
   el("omzet").textContent = fmt(viewGross);
   el("profit").textContent = fmt(viewDiscount);
   el("margin").textContent = "Diskon seller";
   el("finalProfit").textContent = fmt(viewOmzetNet);
   el("finalProfitMeta").textContent = "Omzet setelah diskon seller";
-  el("estimatedProfit").textContent = incomeMissing ? "Belum valid" : fmt(viewSettlement);
-  el("estimatedProfitMeta").textContent = incomeMissing ? "Income belum match" : "Dari income statement";
-  el("held").textContent = fmt(t.pendingSettlementOmzet || 0);
-  el("heldMeta").textContent = num(t.pendingSettlementOrders || 0)+" order belum cair";
-  el("platformFee").textContent = fmt(viewPlatform);
+  // Settlement
+  el("estimatedProfit").textContent = incomeAvail ? fmt(viewSettlement) : "Belum valid";
+  el("estimatedProfitMeta").textContent = incomeAvail ? "Dari income statement" : "Income belum diupload";
+  // Dana Tertahan
+  el("held").textContent = incomeAvail ? (viewHeld !== null ? fmt(viewHeld) : "Rp0") : "Belum valid";
+  el("heldMeta").textContent = incomeAvail ? (num(t.pendingSettlementOrders || 0) + " order belum cair") : "Income belum diupload";
+  // Platform Fee
+  el("platformFee").textContent = incomeAvail ? fmt(viewPlatform) : "Belum valid";
   const platformFeeMetaEl = document.getElementById("platformFeeMeta");
   if (platformFeeMetaEl) {
-    platformFeeMetaEl.textContent = "Final "+fmt(viewPlatformFinal)+" \u00b7 Estimasi "+fmt(viewPlatformEstimated);
+    platformFeeMetaEl.textContent = incomeAvail ? ("Final " + fmt(viewPlatformFinal) + " · Estimasi " + fmt(viewPlatformEstimated)) : "Income belum diupload";
   }
+  // Retur/Cancel
   const cancelPackagesEl = document.getElementById("cancelPackages");
   const cancelPackagesMetaEl = document.getElementById("cancelPackagesMeta");
   if (cancelPackagesEl) cancelPackagesEl.textContent = num(viewCancelledPkg);
   if (cancelPackagesMetaEl) {
-    cancelPackagesMetaEl.textContent = "Retur "+num(viewReturnPkg)+" \u00b7 Cancel "+num(viewCancelPkg);
+    const retText = returnAvail ? ("Retur " + num(viewReturnPkg)) : "Retur belum diupload";
+    cancelPackagesMetaEl.textContent = retText + " · Cancel " + num(viewCancelPkg);
   }
-  el("adSpend").textContent = fmt(viewAdSpend);
+  // Ads
+  el("adSpend").textContent = adsAvail ? fmt(viewAdSpend) : "Belum valid";
   const adSpendSettlementEl = document.getElementById("adSpendSettlement");
-  if (adSpendSettlementEl) adSpendSettlementEl.textContent = fmt(viewAdSpendSettlement);
+  if (adSpendSettlementEl) adSpendSettlementEl.textContent = adsAvail ? fmt(viewAdSpendSettlement) : "Belum ada data";
   const adSpendTopupEl = document.getElementById("adSpendTopup");
-  if (adSpendTopupEl) adSpendTopupEl.textContent = fmt(viewAdSpendTopup);
-  el("hpp").textContent = fmt(viewHppPacking);
+  if (adSpendTopupEl) adSpendTopupEl.textContent = adsAvail ? fmt(viewAdSpendTopup) : "Belum ada data";
+  // HPP + Packing
+  el("hpp").textContent = hppComplete ? fmt(viewHppPacking) : "Belum lengkap";
   const hppMetaEl = document.getElementById("hppMeta");
-  if (hppMetaEl) hppMetaEl.textContent = "HPP "+fmt(viewHpp)+" \u00b7 Packing "+fmt(viewPacking);
+  if (hppMetaEl) hppMetaEl.textContent = "HPP terpetakan " + fmt(viewHpp) + " · Packing " + fmt(viewPacking) + (missingHppCnt > 0 ? " · " + missingHppCnt + " SKU belum HPP" : "");
+  // Profit
   const bookProfitEl = document.getElementById("bookProfit");
-  if (bookProfitEl) bookProfitEl.textContent = fmt(viewProfit);
+  if (bookProfitEl) bookProfitEl.textContent = profitValid ? fmt(viewProfit) : "Belum valid";
   const bookProfitMetaEl = document.getElementById("bookProfitMeta");
-  if (bookProfitMetaEl) bookProfitMetaEl.textContent = pct(viewMargin)+" margin";
+  if (bookProfitMetaEl) bookProfitMetaEl.textContent = profitValid ? (pct(viewMargin) + " margin") : "Lengkapi HPP dan data Income/Ads/Return";
 
   // Mode label
   const modeLabelEl = document.getElementById("modeLabel");
-  if (modeLabelEl) modeLabelEl.textContent = mode === "settlement" ? "Mode Settlement (Cair)" : "Mode Accrual (Real Operasional)";
+  if (modeLabelEl) modeLabelEl.textContent = mode === "settlement"
+    ? "💰 Mode Kas (Settlement) — Hanya uang yang sudah cair ke rekening"
+    : "📦 Mode Proyeksi (Accrual) — Termasuk order Dikirim yang belum cair";
   renderAlerts(summary.alerts || []);
   renderStatus(summary.status || [], summary.operationStatus || [], summary.operationDetails || []);
   renderTable("topSku", summary.topSku);
@@ -350,7 +389,7 @@ function render(summary) {
   drawTrend(summary.daily || []);
   if (summary.availableStores) populateStores(summary.availableStores);
   if (summary.availableMonths) populateMonths(summary.availableMonths);
-  
+
   // Show generated time in quality panel too
   const qualityGen = document.getElementById("qualityGenTime");
   if (qualityGen) qualityGen.textContent = summary.generatedAt || "-";
@@ -521,16 +560,16 @@ function renderStores(rows) {
       <th>Toko</th><th>Order</th><th>Omset</th>${restricted ? "" : "<th>Profit</th><th>Margin</th>"}<th>AOV</th>
     </tr>
     ${rows.map(r => {
-      const margin = r.omzet ? Number(r.profit || 0) / Number(r.omzet || 1) * 100 : 0;
-      const aov = r.orders ? Number(r.omzet || 0) / Number(r.orders || 1) : 0;
-      return `<tr>
+    const margin = r.omzet ? Number(r.profit || 0) / Number(r.omzet || 1) * 100 : 0;
+    const aov = r.orders ? Number(r.omzet || 0) / Number(r.orders || 1) : 0;
+    return `<tr>
         <td><strong>${r.store}</strong></td>
         <td>${num(r.orders)}</td>
         <td>${fmt(r.omzet)}</td>
         ${restricted ? "" : `<td>${fmt(r.profit)}</td><td>${margin.toFixed(1)}%</td>`}
         <td>${fmt(aov)}</td>
       </tr>`;
-    }).join("")}
+  }).join("")}
   `;
 }
 
@@ -566,8 +605,9 @@ function renderSkuDetail(summary) {
   const sortKey = state.skuSort;
   rows.sort((a, b) => Number(b[sortKey] || 0) - Number(a[sortKey] || 0));
   if (sortKey === "margin") rows.sort((a, b) => Number(b.margin || 0) - Number(a.margin || 0));
+  const hasMissing = rows.some(r => r.missingCost);
   const body = rows.slice(0, 80).map(row => `
-    <tr>
+    <tr ${row.missingCost ? 'style="background:rgba(231,76,60,0.06);"' : ''}>
       <td>
         <strong>${row.sku}</strong>
         <small>${row.product ? "<br>" + row.product.slice(0, 84) : ""}</small>
@@ -581,15 +621,20 @@ function renderSkuDetail(summary) {
       <td>${fmt(row.hpp + row.packing)}</td>
       <td>${fmt(row.refund)}</td>
       <td>${fmt(row.adSpend)}</td>
+      <td>${row.missingCost
+      ? `<button onclick="setView('sku');addSkuByName('${row.sku.replace(/'/g, "\\'")}')" style="padding:2px 8px;font-size:0.72rem;background:#e67e22;color:#fff;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">+ Tambah HPP</button>`
+      : '<span style="color:#2ecc71;font-size:0.8rem;">✓</span>'
+    }</td>
     </tr>
   `).join("");
   el("skuDetailTable").innerHTML = `
     <tr>
-      <th>SKU</th><th>Status</th><th>Order</th><th>Qty</th><th>Omset</th><th>Profit</th><th>Margin</th><th>HPP+Packing</th><th>Refund</th><th>Iklan</th>
+      <th>SKU</th><th>Status</th><th>Order</th><th>Qty</th><th>Omset</th><th>Profit</th><th>Margin</th><th>HPP+Packing</th><th>Refund</th><th>Iklan</th><th>HPP</th>
     </tr>
-    ${body || `<tr><td colspan="10">Tidak ada SKU untuk filter ini.</td></tr>`}
+    ${body || `<tr><td colspan="11">Tidak ada SKU untuk filter ini.</td></tr>`}
   `;
 }
+
 
 function renderRuns(rows) {
   el("runs").innerHTML = rows.map(r => `
@@ -939,22 +984,35 @@ document.querySelectorAll("[data-preset]").forEach(btn => btn.addEventListener("
   syncFilterControls();
   scheduleApplyFilters();
 }));
+// ═══════════════════════════════════════════════════════════
+// FILTER HANDLERS — Semua filter saling sinkron otomatis
+// ═══════════════════════════════════════════════════════════
+
 el("monthFilter").addEventListener("change", (event) => {
-  state.pendingFilters.month = event.target.value;
-  state.pendingFilters.preset = state.pendingFilters.month ? "month" : "thisMonth";
+  const selected = event.target.value;
+  if (selected) {
+    // User memilih bulan tertentu → preset "month"
+    state.pendingFilters.month = selected;
+    state.pendingFilters.preset = "month";
+  } else {
+    // User memilih "Semua bulan" → preset "all" (tampilkan semua data)
+    state.pendingFilters.month = "";
+    state.pendingFilters.preset = "all";
+  }
   syncFilterControls();
-  scheduleApplyFilters();
+  scheduleApplyFilters(100); // Auto-apply cepat saat pilih bulan
 });
+
 el("storeFilter").addEventListener("change", (event) => {
   state.pendingFilters.store = event.target.value;
   syncFilterControls();
-  scheduleApplyFilters();
+  scheduleApplyFilters(100); // Auto-apply saat ganti toko
 });
 // Custom date inputs
 var startDateEl = document.getElementById("startDateFilter");
 var endDateEl = document.getElementById("endDateFilter");
-if (startDateEl) startDateEl.addEventListener("change", function() { scheduleApplyFilters(300); });
-if (endDateEl) endDateEl.addEventListener("change", function() { scheduleApplyFilters(300); });
+if (startDateEl) startDateEl.addEventListener("change", function () { scheduleApplyFilters(300); });
+if (endDateEl) endDateEl.addEventListener("change", function () { scheduleApplyFilters(300); });
 el("applyFilters").addEventListener("click", applyFilters);
 el("skuSort").addEventListener("change", (event) => {
   state.skuSort = event.target.value;
@@ -980,27 +1038,27 @@ el("refreshBtn").addEventListener("click", refresh);
 el("jumpUploadBtn").addEventListener("click", () => { setView("ops"); el("uploadPanel").scrollIntoView({ behavior: "smooth" }); });
 
 // Mode calculation toggle
-document.querySelectorAll("[data-calc-mode]").forEach(function(btn) {
-  btn.addEventListener("click", function() {
+document.querySelectorAll("[data-calc-mode]").forEach(function (btn) {
+  btn.addEventListener("click", function () {
     state.calcMode = btn.dataset.calcMode;
-    document.querySelectorAll("[data-calc-mode]").forEach(function(b) {
+    document.querySelectorAll("[data-calc-mode]").forEach(function (b) {
       b.classList.toggle("active", b.dataset.calcMode === state.calcMode);
     });
-    refresh().catch(function(err) { showNotice(err.message); });
+    refresh().catch(function (err) { showNotice(err.message); });
   });
 });
 
 // Drilldown close
 var drillClose = document.getElementById("closeDrilldown");
-if (drillClose) drillClose.addEventListener("click", function() {
+if (drillClose) drillClose.addEventListener("click", function () {
   var p = document.getElementById("drilldownPanel");
   if (p) p.style.display = "none";
 });
 
 // KPI card drilldown click
-document.querySelectorAll(".kpi-card").forEach(function(card) {
+document.querySelectorAll(".kpi-card").forEach(function (card) {
   card.style.cursor = "pointer";
-  card.addEventListener("click", function() {
+  card.addEventListener("click", function () {
     var type = card.dataset.drilldown;
     if (type) openDrilldown(type);
   });
@@ -1014,146 +1072,249 @@ function openDrilldown(type, page) {
   var panel = document.getElementById("drilldownPanel");
   if (!panel) return;
   panel.style.display = "block";
-  
-  var info = {title:type,formula:"-",total:"-"};
+
+  var info = { title: type, formula: "-", total: "-" };
   var rows = [];
   var columns = [];
   var totalRows = 0;
   var PER_PAGE = 25;
-  
+
   if (type === "orders") {
-    info = {title:"Order Selesai",formula:"COUNT DISTINCT order_id WHERE status=Selesai",total:num(t.finalOrders instanceof Set?t.finalOrders.size:(t.finalOrders||0))};
-    columns = ["Order ID","Status","Paket","Omzet","Tanggal"];
-    var ord = (s.operationDetails||[]).filter(function(r){return r.bucket==="completed";});
+    info = { title: "Order Selesai", formula: "COUNT DISTINCT order_id WHERE status=Selesai", total: num(t.finalOrders instanceof Set ? t.finalOrders.size : (t.finalOrders || 0)) };
+    columns = ["Order ID", "Status", "Paket", "Omzet", "Tanggal"];
+    var ord = (s.operationDetails || []).filter(function (r) { return r.bucket === "completed"; });
     totalRows = ord.length;
-    ord = ord.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = ord.map(function(r){return["<strong>"+escapeHtml(r.orderId)+"</strong>","<span class=badge completed>Selesai</span>",num(r.packageCount),fmtExact(r.omzet||0),escapeHtml(r.createdAt||"-")];});
+    ord = ord.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = ord.map(function (r) { return ["<strong>" + escapeHtml(r.orderId) + "</strong>", "<span class=badge completed>Selesai</span>", num(r.packageCount), fmtExact(r.omzet || 0), escapeHtml(r.createdAt || "-")]; });
   } else if (type === "omzet") {
-    info = {title:"Omzet Kotor",formula:"SUM(Subtotal produk sebelum diskon)",total:fmtExact(t.gross)};
-    columns = ["SKU","Qty","Harga/Unit","Subtotal"];
-    var skuRows = (s.skuDetails||[]).slice(0,100);
+    info = { title: "Omzet Kotor", formula: "SUM(Subtotal produk sebelum diskon)", total: fmtExact(t.gross) };
+    columns = ["SKU", "Qty", "Harga/Unit", "Subtotal"];
+    var skuRows = (s.skuDetails || []).slice(0, 100);
     totalRows = skuRows.length;
-    skuRows = skuRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = skuRows.map(function(r){var up = r.qty>0?Math.round(r.omzet/r.qty):0;return[escapeHtml(r.sku),num(r.qty),fmtExact(up),fmtExact(r.omzet)];});
+    skuRows = skuRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = skuRows.map(function (r) { var up = r.qty > 0 ? Math.round(r.omzet / r.qty) : 0; return [escapeHtml(r.sku), num(r.qty), fmtExact(up), fmtExact(r.omzet)]; });
   } else if (type === "discount") {
-    info = {title:"Diskon Seller",formula:"SUM(Diskon penjual)",total:fmtExact(t.sellerDiscount)};
-    columns = ["SKU","Qty","Total Diskon"];
-    var skuRows2 = (s.skuDetails||[]).slice(0,100);
+    info = { title: "Diskon Seller", formula: "SUM(Diskon penjual)", total: fmtExact(t.sellerDiscount) };
+    columns = ["SKU", "Qty", "Total Diskon"];
+    var skuRows2 = (s.skuDetails || []).slice(0, 100);
     totalRows = skuRows2.length;
-    skuRows2 = skuRows2.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = skuRows2.map(function(r){var disc = Math.round((r.sellerDiscount||0));return[escapeHtml(r.sku),num(r.qty),fmtExact(disc)];});
+    skuRows2 = skuRows2.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = skuRows2.map(function (r) { var disc = Math.round((r.sellerDiscount || 0)); return [escapeHtml(r.sku), num(r.qty), fmtExact(disc)]; });
   } else if (type === "omzetnet") {
-    info = {title:"Omzet Net",formula:"Omzet Kotor "+fmtExact(t.gross)+" - Diskon Seller "+fmtExact(t.sellerDiscount),total:fmtExact(t.omzet)};
+    info = { title: "Omzet Net", formula: "Omzet Kotor " + fmtExact(t.gross) + " - Diskon Seller " + fmtExact(t.sellerDiscount), total: fmtExact(t.omzet) };
   } else if (type === "settlement") {
-    info = {title:"Settlement Cair",formula:"SUM(Jumlah penyelesaian pembayaran) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.settlement)};
-    columns = ["Order ID (Pesanan)","Tanggal Pemesanan","Settlement","Biaya Platform"];
+    info = { title: "Settlement Cair", formula: "SUM(Jumlah penyelesaian pembayaran) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan=" + s.filters.startDate + " s/d " + s.filters.endDate, total: fmtExact(t.settlement) };
+    columns = ["Order ID (Pesanan)", "Tanggal Pemesanan", "Settlement", "Biaya Platform"];
     // Fetch settlement details from operationDetails that have settlement
-    var settRows = (s.operationDetails||[]).filter(function(r){return r.bucket==="completed";}).slice(0,200);
+    var settRows = (s.operationDetails || []).filter(function (r) { return r.bucket === "completed"; }).slice(0, 200);
     totalRows = settRows.length;
-    settRows = settRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = settRows.map(function(r){return["<strong>"+escapeHtml(r.orderId)+"</strong>",escapeHtml(r.createdAt||"-"),fmtExact(r.omzet||0),"(lihat income)"];});
+    settRows = settRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = settRows.map(function (r) { return ["<strong>" + escapeHtml(r.orderId) + "</strong>", escapeHtml(r.createdAt || "-"), fmtExact(r.omzet || 0), "(lihat income)"]; });
     if (rows.length === 0) {
-      rows = [["(Data settlement diambil dari Income Statement)","Filter: Jenis=Pesanan, "+s.filters.startDate+".."+s.filters.endDate,"Total: "+fmtExact(t.settlement),"Biaya: "+fmtExact(t.platformFee)]];
+      rows = [["(Data settlement diambil dari Income Statement)", "Filter: Jenis=Pesanan, " + s.filters.startDate + ".." + s.filters.endDate, "Total: " + fmtExact(t.settlement), "Biaya: " + fmtExact(t.platformFee)]];
     }
   } else if (type === "held") {
     const pendingCount = t.pendingSettlementOrders || 0;
     const pendingOmzet = t.pendingSettlementOmzet || 0;
-    info = {title:"Dana Tertahan",formula:pendingCount+" order Selesai/Dikirim belum cair = "+fmtExact(pendingOmzet),total:fmtExact(pendingOmzet)};
+    // PENTING: gunakan pendingSettlementOmzet sebagai heldTotal
+    // (t.held lama hanya order Dikirim tanpa income — tidak additive di filter ALL)
+    const heldTotal = pendingOmzet;
+    const mode = state.calcMode || "accrual";
+
+    // ── Info Card: Penjelasan formula + gap accrual vs settlement ──
+    var netVal = Number(t.net || 0);
+    var platformVal = Number(t.platformFee || 0);
+    var settlementVal = Number(t.settlement || 0);
+    var formulaStr = pendingCount + " order (Selesai/Dikirim) belum ada data pencairan = " + fmtExact(heldTotal);
+    var modeNote = mode === "accrual"
+      ? "Mode Accrual: mencakup order Selesai dan Dikirim yang belum ada settlement. Konsisten di semua periode filter termasuk ALL."
+      : "Mode Settlement: mencakup order yang belum ada perjanjian settlement dari TikTok.";
+
+    info = {
+      title: "Dana Tertahan",
+      formula: formulaStr,
+      total: fmtExact(heldTotal),
+    };
+
+    // Inject info card setelah drilldown dibuka
+    // (dirender via state.drilldown.extraHtml)
+    var extraHtml =
+      '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:12px;">' +
+      '<div style="font-size:0.75rem;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:6px;">APA ITU DANA TERTAHAN?</div>' +
+      '<p style="margin:0 0 8px;font-size:0.85rem;line-height:1.5;color:var(--text);">' +
+      'Dana yang sudah kamu <strong>hasilkan dari pesanan</strong> tapi belum ditransfer TikTok ke rekening.' +
+      ' Order yang muncul di sini adalah pesanan <strong>Selesai</strong> atau <strong>Dikirim</strong> yang belum memiliki data pencairan dari TikTok.' +
+      '</p>' +
+      '<div style="font-size:0.8rem;color:var(--muted);border-top:1px solid var(--border);padding-top:8px;">' +
+      '<strong>Formula:</strong> ' + escapeHtml(formulaStr) + '<br>' +
+      '<em style="color:var(--accent2,#64748b);">' + escapeHtml(modeNote) + '</em>' +
+      '</div>' +
+      '</div>';
+
     if (pendingCount > 0) {
-      columns = ["Order ID","Status","Omzet","Tracking","Paket"];
-      var pendingRows = (s.operationDetails||[]).filter(function(r){return r.pendingSettlement===true;});
+      columns = ["Order ID", "Toko", "Tgl Order", "Umur", "Status", "Omzet Net", "Est. Cair", "Tracking"];
+      var pendingRows = (s.operationDetails || []).filter(function (r) { return r.pendingSettlement === true; });
+      // Sort: order terlama di atas (sudah paling lama tertahan)
+      pendingRows = pendingRows.sort(function (a, b) { return (b.ageDays || 0) - (a.ageDays || 0); });
       totalRows = pendingRows.length;
-      pendingRows = pendingRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-      rows = pendingRows.map(function(r){return["<strong>"+escapeHtml(r.orderId)+"</strong>","<span class=badge>"+escapeHtml(r.status||"-")+"</span>",fmt(r.omzet||0),escapeHtml(r.trackingId||"-"),num(r.packageCount)];});
+      pendingRows = pendingRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+      rows = pendingRows.map(function (r) {
+        var umurBadge = (r.ageDays || 0) > 7
+          ? '<span class="badge bad">' + (r.ageDays || 0) + ' hari</span>'
+          : '<span class="badge watch">' + (r.ageDays || 0) + ' hari</span>';
+        var statusBadge = '<span class="badge ' +
+          (r.bucket === "completed" ? "good" : r.bucket === "shipped" || r.bucket === "delivered" ? "watch" : "bad") +
+          '">' + escapeHtml(r.label || r.status || "-") + '</span>';
+        var estCair = r.estimasiSettlement > 0 ? fmtExact(r.estimasiSettlement) : '<span style="color:var(--muted)">~' + fmtExact(Math.round((r.omzet || 0) * 0.95)) + '</span>';
+        return [
+          "<strong>" + escapeHtml(r.orderId) + "</strong>",
+          escapeHtml(r.store || "-"),
+          escapeHtml(r.createdAt || "-"),
+          umurBadge,
+          statusBadge,
+          fmt(r.omzet || 0),
+          estCair,
+          r.trackingId ? '<span title="' + escapeHtml(r.trackingId) + '">' + escapeHtml((r.trackingId || "").slice(0, 20)) + (r.trackingId.length > 20 ? "…" : "") + "</span>" : "<span style='color:var(--muted)'>Belum ada resi</span>",
+        ];
+      });
+      info.extra = extraHtml;
+    } else {
+      // Tidak ada order tertahan — jelaskan kenapa
+      var reasonHtml = heldTotal > 0
+        ? '<p style="color:var(--muted);font-size:0.85rem;margin:8px 0 0;">Tidak ada order spesifik yang terdeteksi pending settlement dalam operationDetails. Total dana tertahan Rp' + Math.round(heldTotal).toLocaleString("id-ID") + ' dihitung dari order tanpa data settlement.</p>'
+        : '<p style="color:var(--muted);font-size:0.85rem;margin:8px 0 0;">Semua order sudah memiliki data settlement. Tidak ada dana yang tertahan saat ini. 🎉</p>';
+      rows = [["(Tidak ada order tertahan dalam periode ini)", "", "", "", reasonHtml, "", "", ""]];
+      totalRows = 0;
+      columns = ["Order ID", "Toko", "Tgl Order", "Umur", "Status", "Omzet Net", "Est. Cair", "Tracking"];
+      info.extra = extraHtml;
     }
   } else if (type === "platform") {
-    info = {title:"Potongan Platform",formula:"ABS(SUM(Total Biaya)) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.platformFee)};
-    columns = ["Sumber Data","Jenis Transaksi","Periode","Total Biaya"];
-    rows = [["Income Statement (finance_income_raw)","Pesanan",s.filters.startDate+" s/d "+s.filters.endDate,fmtExact(t.platformFee)]];
+    info = { title: "Potongan Platform", formula: "ABS(SUM(Total Biaya)) dari Income Statement, filter: Jenis=Pesanan, Waktu Pemesanan=" + s.filters.startDate + " s/d " + s.filters.endDate, total: fmtExact(t.platformFee) };
+    columns = ["Sumber Data", "Jenis Transaksi", "Periode", "Total Biaya"];
+    rows = [["Income Statement (finance_income_raw)", "Pesanan", s.filters.startDate + " s/d " + s.filters.endDate, fmtExact(t.platformFee)]];
   } else if (type === "cancel") {
-    info = {title:"Paket Retur/Cancel",formula:"Retur: "+num(t.returnPackages||0)+" paket | Cancel: "+num(t.cancelPackages||0)+" paket | Total: "+num(t.cancelledPackages||0),total:num(t.cancelledPackages||0)};
-    columns = ["Order ID","Tipe","Status","Cancel Reason","Tracking","Paket"];
-    var cancelRows = (s.operationDetails||[]).filter(function(r){return r.bucket==="canceled"||r.bucket==="returned";});
+    info = { title: "Paket Retur/Cancel", formula: "Retur: " + num(t.returnPackages || 0) + " paket | Cancel: " + num(t.cancelPackages || 0) + " paket | Total: " + num(t.cancelledPackages || 0), total: num(t.cancelledPackages || 0) };
+    columns = ["Order ID", "Tipe", "Status", "Cancel Reason", "Tracking", "Paket"];
+    var cancelRows = (s.operationDetails || []).filter(function (r) { return r.bucket === "canceled" || r.bucket === "returned"; });
     totalRows = cancelRows.length;
-    cancelRows = cancelRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = cancelRows.map(function(r){return["<strong>"+escapeHtml(r.orderId)+"</strong>","<span class=badge "+r.bucket+">"+escapeHtml(r.label)+"</span>",escapeHtml(r.status||"-"),escapeHtml(r.cancelReason||"-"),escapeHtml(r.trackingId||"-"),num(r.packageCount)];});
+    cancelRows = cancelRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = cancelRows.map(function (r) { return ["<strong>" + escapeHtml(r.orderId) + "</strong>", "<span class=badge " + r.bucket + ">" + escapeHtml(r.label) + "</span>", escapeHtml(r.status || "-"), escapeHtml(r.cancelReason || "-"), escapeHtml(r.trackingId || "-"), num(r.packageCount)]; });
   } else if (type === "adspend" || type === "adspendsettlement" || type === "adspendtopup") {
-    var allAdRows = (s.adSpendRows||[]);
+    var allAdRows = (s.adSpendRows || []);
     var adRows;
     if (type === "adspendsettlement") {
-      adRows = allAdRows.filter(function(r){return (r.channel||"").toLowerCase().indexOf("gmv")>=0;});
-      info = {title:"Iklan Settlement/GMV",formula:"Dari Income Statement: Jenis=Pembayaran GMV untuk Iklan TikTok, Waktu Pemesanan="+s.filters.startDate+" s/d "+s.filters.endDate, total:fmtExact(t.adSpendSettlement||t.settlementAdSpend)};
+      adRows = allAdRows.filter(function (r) { return (r.channel || "").toLowerCase().indexOf("gmv") >= 0; });
+      info = { title: "Iklan Settlement/GMV", formula: "Dari Income Statement: Jenis=Pembayaran GMV untuk Iklan TikTok, Waktu Pemesanan=" + s.filters.startDate + " s/d " + s.filters.endDate, total: fmtExact(t.adSpendSettlement || t.settlementAdSpend) };
     } else if (type === "adspendtopup") {
-      adRows = allAdRows.filter(function(r){return (r.channel||"").toLowerCase().indexOf("top up")>=0;});
-      info = {title:"Iklan Top Up",formula:"SUM(amount) WHERE channel=TikTok Top Up",total:fmtExact(t.adSpendTopup)};
+      adRows = allAdRows.filter(function (r) { return (r.channel || "").toLowerCase().indexOf("top up") >= 0; });
+      info = { title: "Iklan Top Up", formula: "SUM(amount) WHERE channel=TikTok Top Up", total: fmtExact(t.adSpendTopup) };
     } else {
       adRows = allAdRows;
-      info = {title:"Biaya Iklan Total",formula:"GMV "+fmtExact(t.adSpendSettlement)+" + Top Up "+fmtExact(t.adSpendTopup),total:fmtExact(t.adSpend)};
+      info = { title: "Biaya Iklan Total", formula: "GMV " + fmtExact(t.adSpendSettlement) + " + Top Up " + fmtExact(t.adSpendTopup), total: fmtExact(t.adSpend) };
     }
-    columns = ["Toko","Tanggal","Jumlah","Channel","Campaign"];
+    columns = ["Toko", "Tanggal", "Jumlah", "Channel", "Campaign"];
     totalRows = adRows.length;
-    adRows = adRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = adRows.map(function(r){return[escapeHtml(r.store_name||""),escapeHtml(r.spend_date||""),fmtExact(r.amount),escapeHtml(r.channel||""),escapeHtml(r.campaign||"")];});
+    adRows = adRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = adRows.map(function (r) { return [escapeHtml(r.store_name || ""), escapeHtml(r.spend_date || ""), fmtExact(r.amount), escapeHtml(r.channel || ""), escapeHtml(r.campaign || "")]; });
     // If no GMV ad rows in adSpendRows, show from summary totals
     if (type === "adspendsettlement" && rows.length === 0) {
-      rows = [["(Data dari Income Statement)","Jenis: Pembayaran GMV untuk Iklan TikTok","Periode: "+s.filters.startDate+".."+s.filters.endDate,"Total: "+fmtExact(t.adSpendSettlement||t.settlementAdSpend),""]];
+      rows = [["(Data dari Income Statement)", "Jenis: Pembayaran GMV untuk Iklan TikTok", "Periode: " + s.filters.startDate + ".." + s.filters.endDate, "Total: " + fmtExact(t.adSpendSettlement || t.settlementAdSpend), ""]];
     }
   } else if (type === "hpp") {
-    info = {title:"HPP + Packing",formula:"HPP = SUM(Qty x HPP per unit). Packing = COUNT DISTINCT(Tracking>Package>Order) x Rp2.000",total:fmtExact((Number(t.hpp||0)+Number(t.packing||0)))};
-    columns = ["SKU","Qty","HPP/Unit","Total HPP","Status"];
-    var hppRows = (s.skuDetails||[]).filter(function(r){return r.hpp>0||r.qty>0;});
+    var totalHpp = Number(t.hpp || 0);
+    var totalPacking = Number(t.packing || 0);
+    info = {
+      title: "HPP + Packing",
+      formula: "HPP " + fmtExact(totalHpp) + " = SUM(Qty Terhitung × HPP/unit) | Packing " + fmtExact(totalPacking) + " = per paket dari terhitung | Total = " + fmtExact(totalHpp + totalPacking),
+      total: fmtExact(totalHpp + totalPacking),
+    };
+    // Kolom: SKU | Qty Total | Qty Terhitung | HPP/Unit | Total HPP | Packing | Total HPP+Packing | Status
+    columns = ["SKU", "Qty Total", "Qty Terhitung", "HPP/Unit", "Total HPP", "Packing", "Total", "Status"];
+    var hppRows = (s.skuDetails || []).filter(function (r) { return r.hpp > 0 || r.qty > 0; });
+    // Sort: missingCost di bawah, lalu sort by Total HPP+Packing desc
+    hppRows = hppRows.sort(function (a, b) {
+      if (a.missingCost !== b.missingCost) return a.missingCost ? 1 : -1;
+      return ((b.hpp || 0) + (b.packing || 0)) - ((a.hpp || 0) + (a.packing || 0));
+    });
     totalRows = hppRows.length;
-    hppRows = hppRows.slice(page*PER_PAGE, (page+1)*PER_PAGE);
-    rows = hppRows.map(function(r){var templateHpp = r.unitHpp || (r.qtyCost>0?Math.round(r.hpp/r.qtyCost):0);return[escapeHtml(r.sku),num(r.qty)+" (cost: "+num(r.qtyCost||0)+")",fmtExact(templateHpp),fmtExact(r.hpp||0),r.missingCost?"⚠️ Belum dipetakan":"✅"];});
+    hppRows = hppRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+    rows = hppRows.map(function (r) {
+      var unitHpp = r.unitHpp || (r.qtyCost > 0 ? Math.round(r.hpp / r.qtyCost) : 0);
+      var qtyCost = r.qtyCost || 0;
+      var qtyTotal = r.qty || 0;
+      var hppVal = r.hpp || 0;
+      var packingVal = r.packing || 0;
+      var totalVal = hppVal + packingVal;
+      var qtyNote = qtyCost < qtyTotal
+        ? '<span title="' + (qtyTotal - qtyCost) + ' unit cancel/tidak terhitung"><strong>' + num(qtyCost) + '</strong> <span style="color:var(--muted);font-size:0.8em;">/ ' + num(qtyTotal) + '</span></span>'
+        : '<strong>' + num(qtyCost) + '</strong>';
+      var statusBadge = r.missingCost
+        ? '<span class="badge bad">⚠ HPP belum lengkap</span>'
+        : '<span class="badge good">✅ OK</span>';
+      return [
+        escapeHtml(r.sku),
+        num(qtyTotal),
+        qtyNote,
+        fmtExact(unitHpp),
+        fmtExact(hppVal),
+        packingVal > 0 ? fmtExact(packingVal) : '<span style="color:var(--muted)">-</span>',
+        '<strong>' + fmtExact(totalVal) + '</strong>',
+        statusBadge,
+      ];
+    });
   } else if (type === "profitbersih") {
-    var base = t.settlement||0;
-    var pengg = t.adjustmentAmount||0;
-    var hp = (t.hpp||0)+(t.packing||0);
-    var iklan = (t.adSpendTopup||0)+(t.adSpendSettlement||0);
-    info = {title:"Profit Bersih",formula:"Settlement "+fmtExact(base)+" + Penggantian "+fmtExact(pengg)+" - HPP+Packing "+fmtExact(hp)+" - Iklan "+fmtExact(iklan)+" = "+fmtExact(t.profit),total:fmtExact(t.profit)};
+    var base = t.settlement || 0;
+    var pengg = t.adjustmentAmount || 0;
+    var hp = (t.hpp || 0) + (t.packing || 0);
+    var iklan = (t.adSpendTopup || 0) + (t.adSpendSettlement || 0);
+    info = { title: "Profit Bersih", formula: "Settlement " + fmtExact(base) + " + Penggantian " + fmtExact(pengg) + " - HPP+Packing " + fmtExact(hp) + " - Iklan " + fmtExact(iklan) + " = " + fmtExact(t.profit), total: fmtExact(t.profit) };
   }
-  
+
   document.getElementById("drilldownTitle").textContent = info.title;
   document.getElementById("drilldownFormula").textContent = info.formula;
   document.getElementById("drilldownTotal").textContent = "Total: " + info.total;
-  
+
+  // Render extra info card di atas tabel (jika ada — misal Dana Tertahan)
+  var drilldownExtra = document.getElementById("drilldownExtra");
+  if (drilldownExtra) drilldownExtra.innerHTML = info.extra || "";
+
   var tableHtml = "";
   if (rows.length && columns.length) {
-    var th = columns.map(function(c){return"<th>"+escapeHtml(c)+"</th>";}).join("");
-    var tb = rows.map(function(r){return"<tr>"+r.map(function(c){return"<td>"+c+"</td>";}).join("")+"</tr>";}).join("");
-    tableHtml = "<thead><tr>"+th+"</tr></thead><tbody>"+(tb||"<tr><td colspan="+columns.length+">Tidak ada data</td></tr>")+"</tbody>";
+    var th = columns.map(function (c) { return "<th>" + escapeHtml(c) + "</th>"; }).join("");
+    var tb = rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>"; }).join("");
+    tableHtml = "<thead><tr>" + th + "</tr></thead><tbody>" + (tb || "<tr><td colspan=" + columns.length + ">Tidak ada data</td></tr>") + "</tbody>";
   } else {
-    tableHtml = "<tbody><tr><td colspan=5 style=padding:16px;text-align:center;color:#94a3b8;>"+info.formula+"<br><strong>Total: "+info.total+"</strong></td></tr></tbody>";
+    tableHtml = "<tbody><tr><td colspan=5 style=padding:16px;text-align:center;color:#94a3b8;>" + info.formula + "<br><strong>Total: " + info.total + "</strong></td></tr></tbody>";
   }
-  
+
   // Pagination
   var totalPages = Math.ceil(totalRows / PER_PAGE);
   var paginationHtml = "";
   if (totalPages > 1) {
     paginationHtml = "<div class=drilldown-pagination id=drilldownPages>";
     for (var p = 0; p < Math.min(totalPages, 20); p++) {
-      paginationHtml += "<button data-drilldown-page="+p+" class="+(p===page?"active":"")+">"+(p+1)+"</button>";
+      paginationHtml += "<button data-drilldown-page=" + p + " class=" + (p === page ? "active" : "") + ">" + (p + 1) + "</button>";
     }
-    if (totalPages > 20) paginationHtml += "<span>..."+totalPages+" halaman</span>";
-    paginationHtml += "<span style=margin-left:8px;color:#94a3b8;>"+totalRows+" baris total</span></div>";
+    if (totalPages > 20) paginationHtml += "<span>..." + totalPages + " halaman</span>";
+    paginationHtml += "<span style=margin-left:8px;color:#94a3b8;>" + totalRows + " baris total</span></div>";
   }
-  
+
   document.getElementById("drilldownTable").innerHTML = tableHtml;
   document.getElementById("drilldownPagination").innerHTML = paginationHtml;
-  
+
   // Store current drilldown type for pagination
   state._drilldownType = type;
-  
+
   // Re-attach pagination event listeners
   var pageButtons = document.querySelectorAll("#drilldownPages button");
   for (var i = 0; i < pageButtons.length; i++) {
-    pageButtons[i].addEventListener("click", function() {
+    pageButtons[i].addEventListener("click", function () {
       var p = parseInt(this.getAttribute("data-drilldown-page"));
       if (!isNaN(p)) openDrilldown(state._drilldownType, p);
     });
   }
-  
-  panel.scrollIntoView({behavior:"smooth"});
+
+  panel.scrollIntoView({ behavior: "smooth" });
 }
 el("sampleBtn").addEventListener("click", async () => {
   if (isCloudPreview) {
@@ -1181,16 +1342,16 @@ document.getElementById("uploadForm").addEventListener("submit", async (event) =
     }
     el("fileInput").value = "";
     setView("owner");
-    
+
     // Show detailed upload result
-    const flat = (uploadResults||[]).flatMap(item => item && item.results ? item.results : [item]).filter(Boolean);
+    const flat = (uploadResults || []).flatMap(item => item && item.results ? item.results : [item]).filter(Boolean);
     let detailMsg = '';
     for (const r of flat) {
-      const kindLabel = {orders:'Orders',income:'Income',sku:'SKU HPP',ads:'Iklan'}[r.kind]||r.kind||'Data';
-      detailMsg += `${kindLabel}: ${r.rows||0} baris diproses`;
+      const kindLabel = { orders: 'Orders', income: 'Income', sku: 'SKU HPP', ads: 'Iklan' }[r.kind] || r.kind || 'Data';
+      detailMsg += `${kindLabel}: ${r.rows || 0} baris diproses`;
       if (r.inserted) detailMsg += `, ${r.inserted} baru`;
       if (r.updated) detailMsg += `, ${r.updated} diperbarui`;
-      if (r.adSpendRows) detailMsg += `, ${r.adSpendRows} iklan GMV (Rp${Math.round(r.adSpendTotal||0).toLocaleString('id-ID')})`;
+      if (r.adSpendRows) detailMsg += `, ${r.adSpendRows} iklan GMV (Rp${Math.round(r.adSpendTotal || 0).toLocaleString('id-ID')})`;
       if (r.unmatchedOrders) detailMsg += `, ${r.unmatchedOrders} tidak match`;
       detailMsg += '. ';
     }
@@ -1198,7 +1359,7 @@ document.getElementById("uploadForm").addEventListener("submit", async (event) =
     const adTotal = flat.reduce((sum, item) => sum + Number(item.adSpendTotal || 0), 0);
     const adText = adRows ? ` Iklan GMV settlement terdeteksi ${adRows} transaksi (Rp${Math.round(adTotal).toLocaleString('id-ID')}).` : "";
     showNotice((detailMsg || "Upload selesai.") + adText, "info");
-    
+
     // Refresh to show latest data
     setTimeout(refresh, 500);
   } catch (err) {
@@ -1326,7 +1487,7 @@ function renderDataQuality(data) {
   const PAGE_SIZE = 25;
   const paginators = {};
   function initP(tid, rows) { if (!paginators[tid]) paginators[tid] = { offset: 0, rows: rows || [] }; }
-  
+
   function renderTable(tid, cols) {
     const el = document.getElementById(tid);
     if (!el) return;
@@ -1348,9 +1509,9 @@ function renderDataQuality(data) {
   }
 
   // Bind load-more clicks
-  setTimeout(function() {
-    document.querySelectorAll(".qlm").forEach(function(b) {
-      b.addEventListener("click", function() {
+  setTimeout(function () {
+    document.querySelectorAll(".qlm").forEach(function (b) {
+      b.addEventListener("click", function () {
         var t = this.dataset.t;
         if (paginators[t]) {
           paginators[t].offset += PAGE_SIZE;
@@ -1365,13 +1526,13 @@ function renderDataQuality(data) {
     qualitySkuTanpaHpp: [
       { header: "SKU", key: "sku" }, { header: "Toko", key: "store" },
       { header: "Produk", key: "product" },
-      { header: "Qty", key: "qtyTotal", fmt: function(n) { return Number(n || 0).toLocaleString("id-ID"); } },
+      { header: "Qty", key: "qtyTotal", fmt: function (n) { return Number(n || 0).toLocaleString("id-ID"); } },
       { header: "Omset", key: "omzetTotal", fmt: fmtRp },
     ],
     qualityOrderBelumCair: [
       { header: "Order ID", key: "orderId" }, { header: "Toko", key: "store" },
       { header: "SKU", key: "sku" }, { header: "Total", key: "total", fmt: fmtRp },
-      { header: "Dibuat", key: "created" }, { header: "Umur", key: "ageDays", fmt: function(n) { return String(n || 0) + " hr"; } },
+      { header: "Dibuat", key: "created" }, { header: "Umur", key: "ageDays", fmt: function (n) { return String(n || 0) + " hr"; } },
     ],
     qualitySettlementTanpaOrder: [
       { header: "Order ID", key: "orderId" }, { header: "Toko", key: "store" },
@@ -1386,7 +1547,7 @@ function renderDataQuality(data) {
     qualityDuplikat: [
       { header: "Line Key", key: "lineKey" }, { header: "Order ID", key: "orderId" },
       { header: "Toko", key: "store" }, { header: "SKU", key: "sku" },
-      { header: "Duplikat", key: "count", fmt: function(n) { return String(n || 0) + "x"; } },
+      { header: "Duplikat", key: "count", fmt: function (n) { return String(n || 0) + "x"; } },
       { header: "Nilai Total", key: "totalValues", fmt: fmtRp },
     ],
   };
@@ -1394,9 +1555,9 @@ function renderDataQuality(data) {
   for (var tid in tableCols) {
     var dk = tid === "qualitySkuTanpaHpp" ? "skuTanpaHpp"
       : tid === "qualityOrderBelumCair" ? "orderTanpaPencairan"
-      : tid === "qualitySettlementTanpaOrder" ? "pencairanTanpaOrder"
-      : tid === "qualityCancelRefund" ? "cancelRefundBesar"
-      : "dataDuplikat";
+        : tid === "qualitySettlementTanpaOrder" ? "pencairanTanpaOrder"
+          : tid === "qualityCancelRefund" ? "cancelRefundBesar"
+            : "dataDuplikat";
     initP(tid, data[dk] || []);
     renderTable(tid, tableCols[tid]);
   }
@@ -1404,22 +1565,41 @@ function renderDataQuality(data) {
   const saranEl = document.getElementById("qualitySaran");
   if (saranEl) {
     if (data.saran && data.saran.length > 0) {
-      saranEl.innerHTML = '<ul>' + data.saran.map(function(s) { return "<li>" + escapeHtml(s) + "</li>"; }).join("") + "</ul>";
+      saranEl.innerHTML = '<ul>' + data.saran.map(function (s) { return "<li>" + escapeHtml(s) + "</li>"; }).join("") + "</ul>";
     } else {
       saranEl.innerHTML = '<p style="padding:14px;color:#94a3b8;">Data dalam kondisi baik, tidak ada saran perbaikan saat ini ✅</p>';
     }
   }
 }
-// Modify refresh to also load quality data if that view is active
-// refresh() handles quality view inline
+// ===== CONNECTION STATUS =====
+function updateConnectionStatus(summary) {
+  var statusEl = document.getElementById('connectionStatus');
+  if (!statusEl) return;
+  var dot = statusEl.querySelector('.connection-dot');
+  var label = document.getElementById('connectionLabel');
+  var dbLabel = document.getElementById('connectionDb');
 
-// Inject skeleton loading CSS
-(function() {
-  if (document.getElementById("hermes-skeleton-css")) return;
-  const style = document.createElement("style");
-  style.id = "hermes-skeleton-css";
-  style.textContent = ".skeleton{background:linear-gradient(90deg,var(--card-bg,#1e293b) 25%,var(--border,#334155) 50%,var(--card-bg,#1e293b) 75%);background-size:200% 100%;animation:skeleton-pulse 1.5s ease-in-out infinite;border-radius:8px;min-height:20px}.skeleton-card{min-height:80px;margin:8px 0}@keyframes skeleton-pulse{0%{background-position:200% 0}100%{background-position:-200% 0}}";
-  document.head.appendChild(style);
+  var hasData = summary && summary.totals && (summary.totals.orders > 0 || summary.diagnostics);
+  var diag = summary && summary.diagnostics;
+
+  if (hasData) {
+    if (dot) { dot.className = 'connection-dot online'; }
+    if (label) label.textContent = 'Terhubung';
+    if (dbLabel && diag) dbLabel.textContent = 'SQLite · ' + (diag.summaryMs || 0) + 'ms';
+  } else if (summary && summary.alerts && summary.alerts[0] && summary.alerts[0].body && summary.alerts[0].body.indexOf('Supabase') >= 0) {
+    if (dot) { dot.className = 'connection-dot offline'; }
+    if (label) label.textContent = 'Database offline';
+    if (dbLabel) dbLabel.textContent = '';
+  } else {
+    if (dot) { dot.className = 'connection-dot loading'; }
+    if (label) label.textContent = 'Menghubungkan...';
+    if (dbLabel) dbLabel.textContent = '';
+  }
+}
+
+// Check connection on page load
+(function () {
+  updateConnectionStatus(null);
 })();
 
 syncFilterControls();
@@ -1427,7 +1607,7 @@ setView(state.view);
 loadConfig().then(refresh).catch(err => alert(err.message));
 
 // Emergency filter populate — ensures dropdowns work even if render() didn't fill them
-setTimeout(function() {
+setTimeout(function () {
   var mf = document.getElementById("monthFilter");
   var sf = document.getElementById("storeFilter");
   if (mf && mf.options.length <= 1) {
@@ -1444,7 +1624,7 @@ setTimeout(function() {
   }
   if (sf && sf.options.length <= 1) {
     sf.innerHTML = '<option value="all">Semua Toko</option>' +
-      defaultStores.map(function(s) { return '<option value="' + s + '">' + s + "</option>"; }).join("");
+      defaultStores.map(function (s) { return '<option value="' + s + '">' + s + "</option>"; }).join("");
     console.log("[hermes] Emergency stores populated");
   }
 }, 3000);
@@ -1453,3 +1633,243 @@ setInterval(async () => {
   await refresh();
   if (state.view === "ops") await loadConfig();
 }, 60000);
+
+// ═══════════════════════════════════════════════════════════
+// SKU MANAGEMENT — CRUD HPP: Add, Edit, Archive, Search
+// Global SKU berlaku untuk semua toko. Store-specific override.
+// ═══════════════════════════════════════════════════════════
+let skuPage = 0, skuSearch = '', skuStore = 'all', skuTotalLoaded = 0;
+
+// Populate store filter dari availableStores data summary
+function populateSkuStoreFilter(availableStores) {
+  const sel = document.getElementById('skuStoreFilter');
+  if (!sel || !availableStores || !availableStores.length) return;
+  sel.innerHTML = '<option value="all">Semua Toko (+ Global)</option>' +
+    availableStores.map(s => '<option value="' + escHtml(s) + '">' + escHtml(s) + '</option>').join('') +
+    '<option value="global">Global (berlaku semua toko)</option>';
+}
+
+async function loadSkuManage(page) {
+  if (page === undefined) page = 0;
+  skuPage = page;
+  const offset = page * 50;
+  const url = '/api/skus?store=' + encodeURIComponent(skuStore) +
+    '&search=' + encodeURIComponent(skuSearch) +
+    '&limit=51&offset=' + offset; // 51 untuk deteksi ada next page
+  const tbody = document.querySelector('#skuManageTable tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;">Memuat...</td></tr>';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    let skus = data.skus || [];
+    const hasNext = skus.length > 50;
+    if (hasNext) skus = skus.slice(0, 50);
+    skuTotalLoaded = skus.length;
+
+    if (!skus.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">Belum ada SKU. Klik &quot;+ Tambah SKU&quot; untuk menambahkan.</td></tr>';
+    } else {
+      tbody.innerHTML = skus.map(function (s) {
+        const hppFmt = (s.hpp_per_unit || 0).toLocaleString('id-ID');
+        const pkgFmt = (s.packing_per_unit || 0).toLocaleString('id-ID');
+        const storeLabel = s.store_name === 'global' ? '<span style="background:#2ecc71;color:#fff;padding:1px 6px;border-radius:10px;font-size:0.7rem;">Global</span>' : escHtml(s.store_name);
+        const statusColor = s.status === 'active' ? '#2ecc71' : '#e74c3c';
+        const statusLabel = s.status === 'active' ? 'Aktif' : s.status === 'archived' ? 'Arsip' : s.status;
+        const hppBadge = (s.hpp_per_unit || 0) === 0 ? '<span style="color:#e74c3c;font-weight:700;">Rp0 ⚠</span>' : 'Rp' + hppFmt;
+        return '<tr>' +
+          '<td><strong style="font-family:monospace;">' + escHtml(s.seller_sku) + '</strong></td>' +
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.82rem;">' + escHtml(s.product_name || '-') + '</td>' +
+          '<td>' + storeLabel + '</td>' +
+          '<td>' + hppBadge + '</td>' +
+          '<td>Rp' + pkgFmt + '</td>' +
+          '<td><span style="color:' + statusColor + ';">' + statusLabel + '</span></td>' +
+          '<td style="white-space:nowrap;">' +
+          '<button onclick="editSku(' + s.sku_id + ')" style="padding:3px 10px;font-size:0.75rem;cursor:pointer;background:var(--accent);color:#fff;border:none;border-radius:4px;">Edit</button> ' +
+          '<button onclick="archiveSku(' + s.sku_id + ',&quot;' + escHtml(s.seller_sku) + '&quot;,&quot;' + escHtml(s.status) + '&quot;)" style="padding:3px 10px;font-size:0.75rem;cursor:pointer;background:' + (s.status === 'archived' ? '#777' : '#c0392b') + ';color:#fff;border:none;border-radius:4px;">' + (s.status === 'archived' ? 'Hapus' : 'Arsip') + '</button>' +
+          '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    // Pagination
+    const pgEl = document.getElementById('skuPagination');
+    if (pgEl) {
+      let pgHtml = '';
+      if (page > 0) pgHtml += '<button onclick="loadSkuManage(' + (page - 1) + ')" style="padding:4px 14px;cursor:pointer;margin-right:6px;">← Sebelumnya</button>';
+      pgHtml += '<span style="padding:4px 8px;color:#aaa;font-size:0.82rem;">Halaman ' + (page + 1) + ' · ' + skus.length + ' SKU</span>';
+      if (hasNext) pgHtml += '<button onclick="loadSkuManage(' + (page + 1) + ')" style="padding:4px 14px;cursor:pointer;margin-left:6px;">Berikutnya →</button>';
+      pgEl.innerHTML = pgHtml;
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#e74c3c;">Gagal memuat: ' + escHtml(e.message) + '</td></tr>';
+    console.error('[SKU] loadSkuManage error:', e);
+  }
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Buka modal edit SKU berdasarkan ID
+async function editSku(id) {
+  try {
+    const res = await fetch('/api/skus/' + id);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const s = data.sku;
+    if (!s) return alert('SKU tidak ditemukan');
+    _fillSkuModal(s);
+    // Load riwayat HPP
+    try {
+      const hres = await fetch('/api/skus/' + id + '/history');
+      const hdata = await hres.json();
+      const hist = hdata.history || [];
+      document.getElementById('skuHistoryList').innerHTML = hist.length > 0
+        ? hist.map(function (h) {
+          return '<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:0.82rem;">' +
+            (h.created_at || '').slice(0, 10) + ': HPP ' +
+            'Rp' + (h.old_hpp || 0).toLocaleString('id-ID') + ' → Rp' + (h.new_hpp || 0).toLocaleString('id-ID') +
+            '</div>';
+        }).join('')
+        : '<div style="color:#999;font-size:0.82rem;">Belum ada riwayat perubahan HPP</div>';
+    } catch (e) {
+      document.getElementById('skuHistoryList').innerHTML = '<div style="color:#999;">Gagal memuat riwayat</div>';
+    }
+    document.getElementById('skuEditModal').style.display = 'flex';
+  } catch (e) {
+    alert('Gagal memuat SKU: ' + e.message);
+  }
+}
+
+// Buka modal tambah SKU baru (opsional: pre-fill nama SKU dari Quality panel)
+// HPP bersifat global — selalu simpan sebagai 'global' berlaku semua toko
+function addSkuByName(skuName) {
+  const s = {
+    sku_id: '',
+    seller_sku: skuName || '',
+    product_name: '',
+    store_name: 'global',
+    hpp_per_unit: 0,
+    packing_per_unit: 0,
+    status: 'active',
+    effective_from: new Date().toISOString().slice(0, 10),
+  };
+  _fillSkuModal(s);
+  document.getElementById('skuHistoryList').innerHTML = '<div style="color:#999;font-size:0.82rem;">SKU baru — belum ada riwayat</div>';
+  document.getElementById('skuEditModal').style.display = 'flex';
+}
+
+function _fillSkuModal(s) {
+  document.getElementById('skuEditId').value = s.sku_id || '';
+  document.getElementById('skuEditName').value = s.seller_sku || '';
+  document.getElementById('skuEditProduct').value = s.product_name || '';
+  document.getElementById('skuEditStore').value = s.store_name || 'global';
+  document.getElementById('skuEditHpp').value = s.hpp_per_unit || 0;
+  document.getElementById('skuEditPacking').value = s.packing_per_unit || 0;
+  document.getElementById('skuEditEffDate').value = (s.effective_from || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  document.getElementById('skuEditStatus').value = s.status || 'active';
+  document.getElementById('skuEditTitle').textContent = s.sku_id ? ('Edit SKU: ' + s.seller_sku) : 'Tambah SKU Baru';
+}
+
+async function archiveSku(id, name, currentStatus) {
+  const action = currentStatus === 'archived' ? 'hapus permanen' : 'arsipkan';
+  if (!confirm('Yakin ingin ' + action + ' SKU "' + name + '"?\nSKU yang sudah punya transaksi akan di-archive (tidak dihapus permanen).')) return;
+  try {
+    const res = await fetch('/api/skus/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      loadSkuManage(skuPage);
+    } else {
+      alert('Gagal: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Gagal: ' + e.message);
+  }
+}
+
+// Form submit: tambah/edit SKU
+(function () {
+  const form = document.getElementById('skuEditForm');
+  if (!form) return;
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const id = document.getElementById('skuEditId').value;
+    const body = {
+      seller_sku: (document.getElementById('skuEditName').value || '').trim(),
+      product_name: (document.getElementById('skuEditProduct').value || '').trim(),
+      store_name: 'global', // HPP bersifat global — berlaku untuk semua toko
+      hpp_per_unit: parseFloat(document.getElementById('skuEditHpp').value) || 0,
+      packing_per_unit: parseFloat(document.getElementById('skuEditPacking').value) || 0,
+      effective_from: document.getElementById('skuEditEffDate').value || undefined,
+      status: document.getElementById('skuEditStatus').value || 'active',
+    };
+    if (!body.seller_sku) { alert('Seller SKU tidak boleh kosong!'); return; }
+    const url = id ? '/api/skus/' + id : '/api/skus';
+    const method = id ? 'PUT' : 'POST';
+    const btn = form.querySelector('button[type=submit]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        document.getElementById('skuEditModal').style.display = 'none';
+        loadSkuManage(skuPage);
+        refresh(); // Update dashboard
+      } else {
+        alert('Gagal: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Gagal: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Simpan'; }
+    }
+  });
+})();
+
+// Tombol "+ Tambah SKU Baru"
+(function () {
+  const btn = document.getElementById('skuAddBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () { addSkuByName(''); });
+})();
+
+// SKU search input
+(function () {
+  const inp = document.getElementById('skuSearchInput');
+  if (!inp) return;
+  let debounce;
+  inp.addEventListener('input', function () {
+    skuSearch = this.value;
+    clearTimeout(debounce);
+    debounce = setTimeout(function () { loadSkuManage(0); }, 350);
+  });
+})();
+
+// Store filter
+(function () {
+  const sel = document.getElementById('skuStoreFilter');
+  if (!sel) return;
+  sel.addEventListener('change', function () {
+    skuStore = this.value;
+    loadSkuManage(0);
+  });
+})();
+
+// Close modal button
+(function () {
+  const closeBtn = document.getElementById('skuEditCancel') || document.querySelector('#skuEditModal .modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', function () {
+    document.getElementById('skuEditModal').style.display = 'none';
+  });
+  // Klik luar modal juga tutup
+  const modal = document.getElementById('skuEditModal');
+  if (modal) modal.addEventListener('click', function (e) {
+    if (e.target === modal) modal.style.display = 'none';
+  });
+})();

@@ -4,9 +4,9 @@ const { json, readJson, importRows, requireOwner, safeLog } = require("../lib/fi
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method tidak didukung." });
   if (!(await requireOwner(req, res))) return;
-  
+
   // Ensure database schema exists
-  try { await pg.initSchema(); } catch(e) { console.error('Schema init error:', e.message); }
+  try { await pg.initSchema(); } catch (e) { console.error('Schema init error:', e.message); }
   try {
     const contentType = req.headers["content-type"] || "";
     if (contentType.includes("multipart/form-data")) {
@@ -19,22 +19,27 @@ module.exports = async function handler(req, res) {
         const rows = readXlsxRows(file.buffer);
         safeLog("upload_file_read", { filename: file.filename, rows: rows.length, bufferSize: file.buffer?.length || 0 });
         if (!rows.length) {
-          return json(res, 400, { ok: false, error: `File ${file.filename} kosong atau tidak terbaca (${file.buffer?.length||0} bytes). Pastikan file Excel valid.` });
+          return json(res, 400, { ok: false, error: `File ${file.filename} kosong atau tidak terbaca (${file.buffer?.length || 0} bytes). Pastikan file Excel valid.` });
         }
+        // Accept store_name (snake_case dari script/browser) atau storeName (camelCase)
+        const storeName = payload.fields.store_name || payload.fields.storeName || "";
+        const kind = payload.fields.kind || "auto";
         const result = await importRows({
-          storeName: payload.fields.storeName,
-          kind: payload.fields.kind || "auto",
+          storeName,
+          kind,
           filename: file.filename || "upload.xlsx",
           rows,
         });
         results.push(result);
       }
-      safeLog("upload_multipart_done", { files: payload.files.length, store: payload.fields.storeName, results: results.map(item => ({ kind: item.kind, rows: item.rows, updated: item.updated, adSpendRows: item.adSpendRows, adSpendTotal: item.adSpendTotal })) });
-      pg.cacheDelete("split:%").catch(()=>{});
+      safeLog("upload_multipart_done", { files: payload.files.length, store: payload.fields.store_name || payload.fields.storeName, results: results.map(item => ({ kind: item.kind, rows: item.rows, updated: item.updated, adSpendRows: item.adSpendRows, adSpendTotal: item.adSpendTotal })) });
+      pg.cacheDelete("split:%").catch(() => { });
+      // Return compatible dengan script & browser: flat result jika 1 file, array jika multi
+      if (results.length === 1) return json(res, 200, { ok: true, ...results[0], results });
       return json(res, 200, { ok: true, results });
     }
     const body = await readJson(req);
-    safeLog("upload_json_body", { hasRows: !!(body && body.rows), rowsLen: body?.rows?.length, keys: body?.rows?.[0] ? Object.keys(body.rows[0]).slice(0,5) : [] });
+    safeLog("upload_json_body", { hasRows: !!(body && body.rows), rowsLen: body?.rows?.length, keys: body?.rows?.[0] ? Object.keys(body.rows[0]).slice(0, 5) : [] });
     if (!Array.isArray(body.rows)) {
       return json(res, 400, { ok: false, error: "Upload Vercel memakai pembaca Excel/CSV di browser. Refresh halaman lalu pilih file lagi." });
     }
@@ -46,7 +51,7 @@ module.exports = async function handler(req, res) {
     });
     safeLog("upload_json_result", { kind: result.kind, rows: result.rows, inserted: result.inserted });
     safeLog("upload_json_done", { filename: body.filename, store: body.storeName, kind: result.kind, rows: result.rows, updated: result.updated, adSpendRows: result.adSpendRows, adSpendTotal: result.adSpendTotal });
-    pg.cacheDelete("split:%").catch(()=>{});
+    pg.cacheDelete("split:%").catch(() => { });
     return json(res, 200, result);
   } catch (error) {
     safeLog("upload_error", { message: error.message, stack: String(error.stack || "").split("\n").slice(0, 4).join(" | ") });
@@ -158,7 +163,7 @@ function readXlsxRows(buffer) {
   const sheetName = pickSheet(XLSX, workbook);
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) return [];
-  
+
   // Fix: TikTok sheets may have !ref smaller than actual data. Find actual range.
   let range = getSheetRange(XLSX, sheet);
   const keys = Object.keys(sheet).filter(k => k && k[0] !== "!");
@@ -167,7 +172,7 @@ function readXlsxRows(buffer) {
       const cell = XLSX.utils.decode_cell(key);
       if (cell.r > range.e.r) range.e.r = cell.r;
       if (cell.c > range.e.c) range.e.c = cell.c;
-    } catch(e) {}
+    } catch (e) { }
   }
   // Override sheet ref so sheet_to_json reads all rows
   sheet["!ref"] = XLSX.utils.encode_range(range);
@@ -193,7 +198,7 @@ function readXlsxRows(buffer) {
       // Skip description rows: check first column only
       const firstVal = String(Object.values(row)[0] || "").trim().toLowerCase();
       if (firstVal.includes("platform unique order") || firstVal.includes("current order status") ||
-          firstVal.includes("id transaksi") || firstVal === "nama") continue;
+        firstVal.includes("id transaksi") || firstVal === "nama") continue;
       rows.push(row);
     }
   }

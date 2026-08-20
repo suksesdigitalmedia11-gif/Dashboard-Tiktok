@@ -16,7 +16,25 @@
   "scripts": {
     "build": "echo 'Ready'",
     "start": "node server.js",
-    "test": "node tests/finance-regression.test.js",
+    "test": "node tests/finance-regression.test.js && node tests/acceptance-suite.js",
     "import": "node scripts/ultimate-import.js"
-  }
+  },
+  "main": "server.js",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rzkyjlnsyh/dashboard-keuangan-tiktok.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Rzkyjlnsyh/dashboard-keuangan-tiktok/issues"
+  },
+  "homepage": "https://github.com/Rzkyjlnsyh/dashboard-keuangan-tiktok#readme"
 }

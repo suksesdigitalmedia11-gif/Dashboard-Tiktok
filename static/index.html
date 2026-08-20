@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="id">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,6 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
+
 <body>
   <div class="shell">
     <aside class="side">
@@ -49,6 +51,11 @@
           <a href="/tv">TV</a>
         </div>
         <p>Owner berisi profit, HPP, iklan, dan data rahasia. Tim hanya melihat data operasional.</p>
+      </div>
+      <div class="connection-status" id="connectionStatus">
+        <span class="connection-dot loading"></span>
+        <span id="connectionLabel">Menghubungkan...</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--muted);" id="connectionDb"></span>
       </div>
     </aside>
 
@@ -89,15 +96,17 @@
           </div>
         </div>
         <div id="customDateRange" style="display:none;align-items:center;gap:6px;">
-          <input type="date" id="startDateFilter" style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+          <input type="date" id="startDateFilter"
+            style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
           <span style="color:#94a3b8;">s/d</span>
-          <input type="date" id="endDateFilter" style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+          <input type="date" id="endDateFilter"
+            style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
         </div>
         <div class="secret">
           <span>Mode Hitung</span>
           <div class="segments" id="calcModeGroup">
-            <button data-calc-mode="accrual" class="active">Accrual (Real)</button>
-            <button data-calc-mode="settlement">Settlement (Cair)</button>
+            <button data-calc-mode="settlement" class="active">💰 Kas Nyata (Cair)</button>
+            <button data-calc-mode="accrual">📦 Proyeksi (Incl. Dikirim)</button>
           </div>
         </div>
         <label>Bulan <select id="monthFilter"></select></label>
@@ -108,31 +117,137 @@
       <section id="alerts" class="alerts" data-show="owner,team,tv,ops"></section>
 
       <section class="kpis" data-show="owner,team,tv">
-        <div class="mode-indicator secret" id="modeLabel" style="grid-column:1/-1;text-align:center;padding:4px 12px;background:var(--card-bg);border-radius:8px;font-size:0.8rem;color:var(--accent);margin-bottom:8px;">Mode Accrual (Real Operasional)</div>
-        <article class="kpi-card" data-icon="O" data-drilldown="orders"><span>Order Selesai</span><strong id="orders">0</strong><em id="todayOrders">Retur/cancel 0</em></article>
-        <article class="kpi-card" data-icon="Rp" data-drilldown="omzet"><span>Omzet Kotor</span><strong id="omzet">Rp0</strong><em>Sebelum diskon seller</em></article>
-        <article class="kpi-card secret" data-icon="%" data-drilldown="discount"><span>Diskon Seller</span><strong id="profit">Rp0</strong><em id="margin">Potongan seller</em></article>
-        <article class="kpi-card secret" data-icon="N" data-drilldown="omzetnet"><span>Omzet Net</span><strong id="finalProfit">Rp0</strong><em id="finalProfitMeta">Kotor - diskon seller</em></article>
-        <article class="kpi-card secret" data-icon="C" data-drilldown="settlement"><span>Settlement Cair</span><strong id="estimatedProfit">Rp0</strong><em id="estimatedProfitMeta">Dari income statement</em></article>
-        <article class="kpi-card" data-icon="T" data-drilldown="held"><span>Dana Tertahan</span><strong id="held">Rp0</strong><em id="heldMeta">Selisih belum cair</em></article>
-        <article class="kpi-card secret" data-icon="-" data-drilldown="platform"><span>Potongan Platform</span><strong id="platformFee">Rp0</strong><em id="platformFeeMeta">Sudah cair + belum cair</em></article>
-        <article class="kpi-card" data-icon="X" data-drilldown="cancel"><span>Paket Retur/Cancel</span><strong id="cancelPackages">0</strong><em id="cancelPackagesMeta">Retur 0 · Cancel 0</em></article>
-        <article class="kpi-card secret" data-icon="A" data-drilldown="adspend"><span>Biaya Iklan Total</span><strong id="adSpend">Rp0</strong><em>Settlement + top up</em></article>
-        <article class="kpi-card secret" data-icon="GMV" data-drilldown="adspendsettlement"><span>Iklan Settlement</span><strong id="adSpendSettlement">Rp0</strong><em>Dipotong dari GMV toko</em></article>
-        <article class="kpi-card secret" data-icon="Bank" data-drilldown="adspendtopup"><span>Iklan Top Up</span><strong id="adSpendTopup">Rp0</strong><em>Dari rekening/manual</em></article>
-        <article class="kpi-card secret" data-icon="H" data-drilldown="hpp"><span>HPP + Packing</span><strong id="hpp">Rp0</strong><em id="hppMeta">HPP/unit + packing/paket</em></article>
-        <article class="kpi-card secret" data-icon="P" data-drilldown="profitbersih"><span>Profit Bersih</span><strong id="bookProfit">Rp0</strong><em id="bookProfitMeta">Setelah biaya utama</em></article>
+        <div class="mode-indicator secret" id="modeLabel"
+          style="grid-column:1/-1;text-align:center;padding:4px 12px;background:var(--card-bg);border-radius:8px;font-size:0.8rem;color:var(--accent);margin-bottom:8px;">
+          💰 Mode Kas (Settlement) — Hanya uang yang sudah cair ke rekening</div>
+        <article class="kpi-card" data-icon="O" data-drilldown="orders"><span>Order Selesai</span><strong
+            id="orders">0</strong><em id="todayOrders">Retur/cancel 0</em></article>
+        <article class="kpi-card" data-icon="Rp" data-drilldown="omzet"><span>Omzet Kotor</span><strong
+            id="omzet">Rp0</strong><em>Sebelum diskon seller</em></article>
+        <article class="kpi-card secret" data-icon="%" data-drilldown="discount"><span>Diskon Seller</span><strong
+            id="profit">Rp0</strong><em id="margin">Potongan seller</em></article>
+        <article class="kpi-card secret" data-icon="N" data-drilldown="omzetnet"><span>Omzet Net</span><strong
+            id="finalProfit">Rp0</strong><em id="finalProfitMeta">Kotor - diskon seller</em></article>
+        <article class="kpi-card secret" data-icon="C" data-drilldown="settlement"><span>Settlement Cair</span><strong
+            id="estimatedProfit">Rp0</strong><em id="estimatedProfitMeta">Dari income statement</em></article>
+        <article class="kpi-card" data-icon="T" data-drilldown="held"><span>Dana Tertahan</span><strong
+            id="held">Rp0</strong><em id="heldMeta">Selisih belum cair</em></article>
+        <article class="kpi-card secret" data-icon="-" data-drilldown="platform"><span>Potongan Platform</span><strong
+            id="platformFee">Rp0</strong><em id="platformFeeMeta">Sudah cair + belum cair</em></article>
+        <article class="kpi-card" data-icon="X" data-drilldown="cancel"><span>Paket Retur/Cancel</span><strong
+            id="cancelPackages">0</strong><em id="cancelPackagesMeta">Retur 0 · Cancel 0</em></article>
+        <article class="kpi-card secret" data-icon="A" data-drilldown="adspend"><span>Biaya Iklan Total</span><strong
+            id="adSpend">Rp0</strong><em>Settlement + top up</em></article>
+        <article class="kpi-card secret" data-icon="GMV" data-drilldown="adspendsettlement"><span>Iklan
+            Settlement</span><strong id="adSpendSettlement">Rp0</strong><em>Dipotong dari GMV toko</em></article>
+        <article class="kpi-card secret" data-icon="Bank" data-drilldown="adspendtopup"><span>Iklan Top Up</span><strong
+            id="adSpendTopup">Rp0</strong><em>Dari rekening/manual</em></article>
+        <article class="kpi-card secret" data-icon="H" data-drilldown="hpp"><span>HPP + Packing</span><strong
+            id="hpp">Rp0</strong><em id="hppMeta">HPP/unit + packing/paket</em></article>
+        <article class="kpi-card secret" data-icon="P" data-drilldown="profitbersih"><span>Profit
+            Marketplace</span><strong id="bookProfit">Rp0</strong><em id="bookProfitMeta">Setelah biaya utama</em>
+        </article>
       </section>
+
+      <!-- SKU MANAGEMENT — langsung di bawah KPI -->
+      <article class="panel" data-show="owner,sku">
+        <div class="panel-head">
+          <div><span>Master SKU</span><strong>Kelola HPP — Global Semua Toko</strong></div>
+        </div>
+        <div style="display:flex;gap:8px;padding:8px 16px;flex-wrap:wrap;align-items:center;">
+          <input id="skuSearchInput" placeholder="Cari SKU..."
+            style="flex:1;min-width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;">
+          <select id="skuStoreFilter"
+            style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;">
+            <option value="all">Semua Toko (+ Global)</option>
+            <option value="global">Global</option>
+            <option value="ventura">ventura</option>
+            <option value="custombase">custombase</option>
+            <option value="giftyours">giftyours</option>
+            <option value="cetakin">cetakin</option>
+            <option value="memora">memora</option>
+            <option value="piksera">piksera</option>
+            <option value="tempelin">tempelin</option>
+          </select>
+          <button id="skuAddBtn"
+            style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">+
+            Tambah SKU</button>
+        </div>
+        <div class="table-wrap" style="max-height:350px;overflow-y:auto;">
+          <table id="skuManageTable" style="width:100%;font-size:0.85rem;">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Produk</th>
+                <th>Toko</th>
+                <th>HPP</th>
+                <th>Packing</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="skuPagination" style="padding:4px 16px;display:flex;gap:4px;flex-wrap:wrap;"></div>
+      </article>
+
+      <!-- SKU EDIT MODAL -->
+      <div id="skuEditModal"
+        style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+        <div
+          style="background:var(--bg);border-radius:12px;padding:20px;max-width:450px;width:90%;max-height:80vh;overflow-y:auto;">
+          <h3 id="skuEditTitle">Edit SKU</h3>
+          <form id="skuEditForm" class="form">
+            <input type="hidden" id="skuEditId">
+            <label>Seller SKU <input id="skuEditName" required placeholder="Contoh: HOLO-LOGO-9"></label>
+            <label>Nama Produk <input id="skuEditProduct" placeholder="Nama produk (opsional)"></label>
+            <input type="hidden" id="skuEditStore" value="global">
+            <div style="margin-bottom:10px;">
+              <label style="margin-bottom:2px;display:block;font-size:0.8rem;color:#aaa;">Cakupan HPP</label>
+              <span
+                style="display:inline-block;padding:4px 12px;background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border-radius:20px;font-size:0.8rem;font-weight:600;">
+                🌐 Global — berlaku semua toko
+              </span>
+              <small style="color:#aaa;display:block;margin-top:4px;">HPP/packing bersifat universal. Satu SKU = satu
+                HPP untuk seluruh toko.</small>
+            </div>
+            <label>HPP per Unit (Rp) <input id="skuEditHpp" type="number" inputmode="numeric" min="0" required
+                placeholder="0"></label>
+            <label>Packing per Unit (Rp) <input id="skuEditPacking" type="number" inputmode="numeric" min="0"
+                placeholder="0"></label>
+            <label>Berlaku Mulai <input id="skuEditEffDate" type="date"></label>
+            <label>Status <select id="skuEditStatus">
+                <option value="active">Aktif</option>
+                <option value="archived">Diarsipkan</option>
+              </select></label>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button type="submit"
+                style="flex:1;background:var(--accent);color:#fff;border:none;padding:8px;border-radius:6px;cursor:pointer;">Simpan</button>
+              <button type="button" id="skuEditCancel"
+                style="flex:1;background:#666;color:#fff;border:none;padding:8px;border-radius:6px;cursor:pointer;">Batal</button>
+            </div>
+          </form>
+          <div id="skuHistorySection" style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;">
+            <strong style="font-size:0.85rem;">Riwayat HPP:</strong>
+            <div id="skuHistoryList" style="font-size:0.8rem;max-height:150px;overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
 
       <section id="drilldownPanel" class="panel secret" data-show="owner" style="display:none;">
         <div class="panel-head">
           <div><span>Drilldown</span><strong id="drilldownTitle">Detail Perhitungan</strong></div>
-          <button id="closeDrilldown" style="background:var(--border);color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;">Tutup</button>
+          <button id="closeDrilldown"
+            style="background:var(--border);color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;">Tutup</button>
         </div>
         <div id="drilldownFormula" style="padding:8px 16px;font-size:0.85rem;color:var(--accent);"></div>
         <div id="drilldownTotal" style="padding:0 16px 8px;font-size:1.1rem;font-weight:700;"></div>
+        <div id="drilldownExtra" style="padding:0 16px;"></div>
         <div id="drilldownPagination" style="padding:4px 16px;display:flex;gap:4px;flex-wrap:wrap;"></div>
-        <div class="table-wrap" style="max-height:400px;overflow-y:auto;"><table id="drilldownTable"></table></div>
+        <div class="table-wrap" style="max-height:400px;overflow-y:auto;">
+          <table id="drilldownTable"></table>
+        </div>
       </section>
 
       <section class="grid" data-show="owner,team,tv">
@@ -144,7 +259,9 @@
           <canvas id="trend" width="900" height="280"></canvas>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><span>Status</span><strong>Posisi Order</strong></div></div>
+          <div class="panel-head">
+            <div><span>Status</span><strong>Posisi Order</strong></div>
+          </div>
           <div id="operationCards" class="operation-cards"></div>
           <div class="table-controls status-controls">
             <select id="statusFilter">
@@ -164,19 +281,27 @@
               <option value="created">Sort terbaru</option>
             </select>
           </div>
-          <div class="table-wrap operation-table"><table id="operationTable"></table></div>
-          <div class="compact-head panel-head"><div><span>Mentah</span><strong>Status dari file</strong></div></div>
+          <div class="table-wrap operation-table">
+            <table id="operationTable"></table>
+          </div>
+          <div class="compact-head panel-head">
+            <div><span>Mentah</span><strong>Status dari file</strong></div>
+          </div>
           <div id="statusList" class="status-list"></div>
         </article>
       </section>
 
       <section class="grid secret" data-show="owner">
         <article class="panel assistant-panel secret">
-          <div class="panel-head"><div><span>AI Finance Assistant</span><strong>Analisa & Rekomendasi</strong></div><b id="healthScore">0</b></div>
+          <div class="panel-head">
+            <div><span>AI Finance Assistant</span><strong>Analisa & Rekomendasi</strong></div><b id="healthScore">0</b>
+          </div>
           <div id="assistant" class="assistant"></div>
         </article>
         <article class="panel secret">
-          <div class="panel-head"><div><span>Forecast</span><strong>Proyeksi 30 Hari</strong></div></div>
+          <div class="panel-head">
+            <div><span>Forecast</span><strong>Proyeksi 30 Hari</strong></div>
+          </div>
           <div class="forecast">
             <div><span>Omset</span><strong id="forecastOmzet">Rp0</strong></div>
             <div class="secret"><span>Profit</span><strong id="forecastProfit">Rp0</strong></div>
@@ -186,24 +311,38 @@
       </section>
 
       <section class="panel stores-only" data-show="stores">
-        <div class="panel-head"><div><span>Dashboard Per Toko</span><strong>Perbandingan Semua Toko</strong></div></div>
+        <div class="panel-head">
+          <div><span>Dashboard Per Toko</span><strong>Perbandingan Semua Toko</strong></div>
+        </div>
         <div id="storeCards" class="store-cards"></div>
-        <div class="table-wrap store-table"><table id="storeTable"></table></div>
+        <div class="table-wrap store-table">
+          <table id="storeTable"></table>
+        </div>
       </section>
 
       <section id="accountingPanel" class="panel accounting-only secret" data-show="accounting">
-        <div class="panel-head"><div><span>Akuntansi</span><strong>Laporan Laba Rugi, Neraca & Arus Kas</strong></div></div>
+        <div class="panel-head">
+          <div><span>Akuntansi</span><strong>Laporan Laba Rugi, Neraca & Arus Kas</strong></div>
+        </div>
         <div id="accountingContent" class="accounting-content"></div>
       </section>
 
       <section class="grid" data-show="owner,team,tv">
         <article class="panel">
-          <div class="panel-head"><div><span>SKU</span><strong>Profit Terbesar</strong></div></div>
-          <div class="table-wrap"><table id="topSku"></table></div>
+          <div class="panel-head">
+            <div><span>SKU</span><strong>Profit Terbesar</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="topSku"></table>
+          </div>
         </article>
         <article class="panel secret">
-          <div class="panel-head"><div><span>Perhatian</span><strong>SKU Paling Lemah</strong></div></div>
-          <div class="table-wrap"><table id="weakSku"></table></div>
+          <div class="panel-head">
+            <div><span>Perhatian</span><strong>SKU Paling Lemah</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="weakSku"></table>
+          </div>
         </article>
       </section>
 
@@ -235,45 +374,82 @@
           <div><span>HPP Belum Lengkap</span><strong id="skuMissing">0</strong></div>
         </div>
         <div id="skuInsight" class="sku-insight"></div>
-        <div class="table-wrap detail-table"><table id="skuDetailTable"></table></div>
+        <div class="table-wrap detail-table">
+          <table id="skuDetailTable"></table>
+        </div>
       </section>
 
       <section id="qualityPanel" class="grid quality-only" data-show="quality">
         <article class="panel wide">
-          <div class="panel-head"><div><span>Data Quality Center</span><strong>Deteksi & Laporan Masalah Data</strong></div>
+          <div class="panel-head">
+            <div><span>Data Quality Center</span><strong>Deteksi & Laporan Masalah Data</strong></div>
             <span id="qualityScore" class="quality-score">Skor: -</span>
           </div>
           <div id="qualityOverview" class="quality-overview"></div>
         </article>
         <article class="panel quality-skus">
-          <div class="panel-head"><div><span>SKU</span><strong>Tanpa HPP / Packing</strong></div></div>
-          <div class="table-wrap"><table id="qualitySkuTanpaHpp"><tbody></tbody></table></div>
+          <div class="panel-head">
+            <div><span>SKU</span><strong>Tanpa HPP / Packing</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="qualitySkuTanpaHpp">
+              <tbody></tbody>
+            </table>
+          </div>
         </article>
         <article class="panel quality-orders">
-          <div class="panel-head"><div><span>Order</span><strong>Selesai Belum Cair</strong></div></div>
-          <div class="table-wrap"><table id="qualityOrderBelumCair"><tbody></tbody></table></div>
+          <div class="panel-head">
+            <div><span>Order</span><strong>Selesai Belum Cair</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="qualityOrderBelumCair">
+              <tbody></tbody>
+            </table>
+          </div>
         </article>
         <article class="panel quality-settlements">
-          <div class="panel-head"><div><span>Settlement</span><strong>Pencairan Tanpa Order</strong></div></div>
-          <div class="table-wrap"><table id="qualitySettlementTanpaOrder"><tbody></tbody></table></div>
+          <div class="panel-head">
+            <div><span>Settlement</span><strong>Pencairan Tanpa Order</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="qualitySettlementTanpaOrder">
+              <tbody></tbody>
+            </table>
+          </div>
         </article>
         <article class="panel quality-cancels">
-          <div class="panel-head"><div><span>Cancel/Refund</span><strong>Nilai Besar</strong></div></div>
-          <div class="table-wrap"><table id="qualityCancelRefund"><tbody></tbody></table></div>
+          <div class="panel-head">
+            <div><span>Cancel/Refund</span><strong>Nilai Besar</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="qualityCancelRefund">
+              <tbody></tbody>
+            </table>
+          </div>
         </article>
         <article class="panel quality-duplicates">
-          <div class="panel-head"><div><span>Duplikasi</span><strong>Data Terduplikasi</strong></div></div>
-          <div class="table-wrap"><table id="qualityDuplikat"><tbody></tbody></table></div>
+          <div class="panel-head">
+            <div><span>Duplikasi</span><strong>Data Terduplikasi</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table id="qualityDuplikat">
+              <tbody></tbody>
+            </table>
+          </div>
         </article>
         <article class="panel quality-suggestions">
-          <div class="panel-head"><div><span>Saran</span><strong>Rekomendasi Perbaikan</strong></div></div>
+          <div class="panel-head">
+            <div><span>Saran</span><strong>Rekomendasi Perbaikan</strong></div>
+          </div>
           <div id="qualitySaran" class="quality-saran"></div>
         </article>
       </section>
 
       <section id="uploadPanel" class="grid ops-only" data-show="ops">
         <article class="panel">
-          <div class="panel-head"><div><span>Upload</span><strong>Data SKU, Order, atau Pencairan</strong></div></div>
+          <div class="panel-head">
+            <div><span>Upload</span><strong>Data SKU, Order, atau Pencairan</strong></div>
+          </div>
           <form id="uploadForm" class="form">
             <label>Toko
               <select name="storeName" id="uploadStore"></select>
@@ -294,7 +470,9 @@
           </form>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><span>Iklan</span><strong>Update Biaya Iklan</strong></div></div>
+          <div class="panel-head">
+            <div><span>Iklan</span><strong>Update Biaya Iklan</strong></div>
+          </div>
           <form id="adSpendForm" class="form">
             <label>Toko <select name="storeName" id="adStore"></select></label>
             <label>Tanggal <input name="spendDate" id="adSpendDate" type="date"></label>
@@ -313,7 +491,9 @@
           </form>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><span>Auto Update Folder</span><strong>Scan Data Desty Berkala</strong></div></div>
+          <div class="panel-head">
+            <div><span>Auto Update Folder</span><strong>Scan Data Desty Berkala</strong></div>
+          </div>
           <form id="folderForm" class="form">
             <label>Folder download data <input name="path" placeholder="/Users/.../Downloads"></label>
             <label>Toko <select name="storeName" id="folderStore"></select></label>
@@ -343,10 +523,13 @@
 
       <section class="grid ops-only" data-show="ops">
         <article class="panel">
-          <div class="panel-head"><div><span>Toko</span><strong>Kelola Daftar Toko</strong></div></div>
+          <div class="panel-head">
+            <div><span>Toko</span><strong>Kelola Daftar Toko</strong></div>
+          </div>
           <form id="storesForm" class="form">
             <label>Daftar Toko (satu per baris)
-              <textarea name="stores" rows="5" style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;">ventura
+              <textarea name="stores" rows="5"
+                style="background:var(--card-bg);color:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;">ventura
 giftyours
 custombase</textarea>
             </label>
@@ -354,22 +537,31 @@ custombase</textarea>
           </form>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><span>Telegram</span><strong>Ringkasan Otomatis Pagi</strong></div></div>
+          <div class="panel-head">
+            <div><span>Telegram</span><strong>Ringkasan Otomatis Pagi</strong></div>
+          </div>
           <form id="configForm" class="form">
             <label>Bot Token <input name="telegramBotToken" placeholder="Isi token bot Telegram"></label>
             <label>Chat ID <input name="telegramChatId" placeholder="Isi chat ID Telegram"></label>
             <label>Jam kirim pagi <input name="morningTime" type="time" value="07:30"></label>
-            <label>PIN Owner <input name="ownerPin" type="password" placeholder="Opsional, untuk kunci akses owner"></label>
+            <label>PIN Owner <input name="ownerPin" type="password"
+                placeholder="Opsional, untuk kunci akses owner"></label>
             <button>Simpan Pengaturan</button>
             <button type="button" id="telegramTest">Kirim Tes Telegram</button>
           </form>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><span>Audit</span><strong>Riwayat Upload</strong></div></div>
+          <div class="panel-head">
+            <div><span>Audit</span><strong>Riwayat Upload</strong></div>
+          </div>
           <div id="runs" class="runs"></div>
-          <div class="panel-head compact-head"><div><span>Perubahan</span><strong>Status, Order, dan Pencairan</strong></div></div>
+          <div class="panel-head compact-head">
+            <div><span>Perubahan</span><strong>Status, Order, dan Pencairan</strong></div>
+          </div>
           <div id="auditEvents" class="audit-events"></div>
-          <div class="panel-head compact-head"><div><span>Iklan</span><strong>Riwayat Biaya Iklan</strong></div></div>
+          <div class="panel-head compact-head">
+            <div><span>Iklan</span><strong>Riwayat Biaya Iklan</strong></div>
+          </div>
           <div id="adSpendRows" class="runs"></div>
         </article>
       </section>
@@ -379,4 +571,5 @@ custombase</textarea>
   <script src="/static/cloud.js?v=20260722-fix"></script>
   <script src="/static/app.js?v=20260722-fix"></script>
 </body>
+
 </html>

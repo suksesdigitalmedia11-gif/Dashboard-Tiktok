@@ -32,7 +32,7 @@ const STATIC_DIR = path.join(ROOT, 'static');
 const handlers = {};
 const apiFiles = [
   'config', 'summary', 'upload', 'ad-spend', 'accounting',
-  'data-quality',
+  'data-quality', 'health', 'stores', 'skus',
   'telegram-daily', 'telegram-test', 'import-samples',
   'folder-monitor', 'folder-run', 'split-data',
   'debug',
@@ -66,7 +66,7 @@ function serveStatic(url, res) {
   // Strip /static/ prefix — files are directly in STATIC_DIR
   const cleanUrl = url.startsWith('/static/') ? url.slice(7).replace(/^\//, '') : (url === '/' ? 'index.html' : url.slice(1));
   let filePath = path.join(STATIC_DIR, cleanUrl);
-  
+
   // Fallback untuk SPA: semua route selain /api/ serve index.html
   if (!url.startsWith('/api/') && !url.startsWith('/static/')) {
     if (!fs.existsSync(filePath)) {
@@ -75,10 +75,19 @@ function serveStatic(url, res) {
   }
   const ext = path.extname(filePath);
   const contentType = MIME[ext] || 'application/octet-stream';
-  
+
   try {
     const content = fs.readFileSync(filePath);
-    res.writeHead(200, { 'Content-Type': contentType });
+    // Cache-Control: JS/CSS/HTML selalu fresh (jangan di-cache Cloudflare),
+    // aset statis (gambar, font) boleh di-cache lama karena jarang berubah
+    const noCacheExts = ['.js', '.css', '.html'];
+    const cacheHeader = noCacheExts.includes(ext)
+      ? 'no-store, no-cache, must-revalidate'
+      : 'public, max-age=31536000, immutable'; // 1 tahun untuk aset statis
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': cacheHeader,
+    });
     res.end(content);
     return true;
   } catch {
@@ -112,7 +121,7 @@ const server = http.createServer(async (req, res) => {
         query: Object.fromEntries(url.searchParams),
         body: null,
       });
-      
+
       // Parse body untuk POST
       if (req.method === 'POST') {
         const buffers = [];
@@ -141,7 +150,7 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
-    
+
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'API endpoint tidak ditemukan' }));
     return;
