@@ -6,3 +6,7 @@ nul
 server.log
 *.db
 .env
+*.tar.gz
+*.zip
+PUBLIC_URL.txt
+favicon_io.zip
