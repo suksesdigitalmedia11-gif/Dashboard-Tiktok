@@ -5,7 +5,8 @@
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js)
 ![Database](https://img.shields.io/badge/Database-SQLite%20%7C%20Turso%20%7C%20PostgreSQL-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)
-![License](https://img.shields.io/badge/License-Internal%20Use-orange)
+![License](https://img.shields.io/badge/License-Sukses%20Digital%20Media-orange)
+![Developer](https://img.shields.io/badge/Developer-Rizky%20Juliansyah-blueviolet)
 
 ---
 
@@ -545,7 +546,7 @@ node scripts/rebuild-import.js
 
 ## 🤝 Kontribusi & Pengembangan
 
-Project ini untuk **penggunaan internal bisnis**. Jika ingin berkontribusi:
+Project ini dikembangkan untuk **kebutuhan internal Sukses Digital Media**. Jika ingin berkontribusi:
 
 1. Fork repository
 2. Buat branch baru: `git checkout -b fitur/nama-fitur`
@@ -568,10 +569,20 @@ Lihat file [`ROADMAP_PENGEMBANGAN.md`](ROADMAP_PENGEMBANGAN.md) untuk rencana fi
 
 ## 📄 Lisensi
 
-Proyek ini untuk **penggunaan internal bisnis**. Tidak untuk disebarluaskan tanpa izin pemilik.
+Hak Cipta © 2026 **Sukses Digital Media**. Seluruh hak cipta dilindungi.
+
+Proyek ini merupakan **kepemilikan eksklusif Sukses Digital Media** dan dikembangkan untuk kebutuhan internal. Dilarang mendistribusikan, memodifikasi, atau menggunakan ulang tanpa izin tertulis dari pemilik.
 
 ---
 
-*Dibuat dengan ❤️ untuk seller TikTok Shop Indonesia*
+## 👨‍💻 Developer
+
+| Nama | Role | Organisasi |
+|------|------|----------|
+| **Rizky Juliansyah** | Developer | Tim Sukses Digital Media |
+
+---
+
+*Dibuat dengan ❤️ oleh Tim Sukses Digital Media untuk seller TikTok Shop Indonesia*
 
 *Last updated: September 2026*
